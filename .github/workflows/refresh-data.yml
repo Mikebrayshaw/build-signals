@@ -1,0 +1,44 @@
+name: Refresh Build Signals Data
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (adjust as needed)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub UI
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch HN posts (last 7 days)
+        run: python -m scripts.hn_listener --days 7
+
+      - name: Match to GitHub repos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # Read the latest run directory
+          LATEST_RUN=$(cat runs/latest)
+          python -m scripts.github_matcher --input "$LATEST_RUN"
+
+      - name: Upload to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          LATEST_RUN=$(cat runs/latest)
+          python -m scripts.supabase_loader --input "$LATEST_RUN"
