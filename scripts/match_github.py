@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-GitHub Matcher - Match HN pain points to relevant GitHub repos.
+GitHub Matcher - Match pain points to relevant GitHub repos.
 
 Extracts keywords from titles and searches GitHub for relevant repos.
+Supports: Hacker News (Ask HN, Show HN) and Product Hunt launches.
 """
 
 import argparse
@@ -116,6 +117,12 @@ def extract_keywords(title: str, min_length: int = 3) -> list[str]:
     """Extract meaningful keywords from a title."""
     # Remove "Ask HN:" or "Show HN:" prefix
     title = re.sub(r'^(Ask|Show)\s+HN:\s*', '', title, flags=re.IGNORECASE)
+
+    # For Product Hunt "Name - Tagline" format, use the tagline part primarily
+    if " - " in title:
+        parts = title.split(" - ", 1)
+        # Combine product name and tagline for keywords
+        title = " ".join(parts)
     
     # Extract words
     words = re.findall(r'\b[a-zA-Z][a-zA-Z0-9]*\b', title.lower())
@@ -326,8 +333,8 @@ def main():
         )
     
     elif input_path.is_dir():
-        # Directory - process ask_hn.jsonl and show_hn.jsonl
-        for filename in ["ask_hn.jsonl", "show_hn.jsonl"]:
+        # Directory - process HN and Product Hunt files
+        for filename in ["ask_hn.jsonl", "show_hn.jsonl", "producthunt.jsonl"]:
             file_path = input_path / filename
             if file_path.exists():
                 output_path = input_path / filename.replace(".jsonl", "_matched.jsonl")

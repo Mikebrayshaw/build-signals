@@ -1,130 +1,185 @@
 #!/usr/bin/env python3
 """
-Supabase Loader - Load matched HN posts to Supabase.
+Supabase Loader - Upsert opportunities to Supabase.
 
-Reads *_matched.jsonl files and upserts to an "opportunities" table.
-Uses Supabase REST API directly (no heavy SDK dependencies).
+Part of Build Signals: pain point discovery for vibe coders.
 """
 
 import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
 from dotenv import load_dotenv
 
+load_dotenv()
 
-def load_matched_files(runs_dir: Path) -> list[dict]:
-    """Load all *_matched.jsonl files from a runs directory."""
-    records = []
-
-    for pattern in ["ask_hn_matched.jsonl", "show_hn_matched.jsonl"]:
-        file_path = runs_dir / pattern
-        if file_path.exists():
-            print(f"  Loading {pattern}...")
-            count_before = len(records)
-            with open(file_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        records.append(json.loads(line))
-            print(f"    Added {len(records) - count_before} records")
-
-    return records
+try:
+    from supabase import create_client, Client
+except ImportError:
+    print("ERROR: supabase package not installed")
+    print("Run: pip install supabase")
+    sys.exit(1)
 
 
-def transform_record(record: dict) -> dict:
-    """Transform HN record to Supabase schema."""
-    return {
-        "hn_id": record.get("id"),
-        "source": record.get("source", "unknown"),
-        "title": record.get("title", ""),
-        "url": record.get("url", ""),
-        "external_url": record.get("external_url"),
-        "author": record.get("by") or record.get("author"),
-        "score": record.get("score", 0),
-        "comments": record.get("descendants", 0),
-        "text": record.get("text", ""),
-        "keywords": record.get("keywords", []),
-        "github_repos": record.get("github_repos", []),
-        "created_at": record.get("created_iso") or datetime.fromtimestamp(
-            record.get("created_utc", 0), tz=timezone.utc
-        ).isoformat(),
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-    }
+def get_supabase_client() -> Client:
+    """Create Supabase client from environment."""
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
+
+    if not url or not key:
+        print("ERROR: SUPABASE_URL and SUPABASE_KEY must be set")
+        sys.exit(1)
+
+    return create_client(url, key)
 
 
-class SupabaseClient:
-    """Lightweight Supabase client using REST API."""
+def normalize_record(record: dict) -> dict:
+    """
+    Normalize record to match Supabase opportunities table schema.
 
-    def __init__(self, url: str, key: str):
-        self.base_url = url.rstrip("/")
-        self.headers = {
-            "apikey": key,
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates",  # Enables upsert
+    Expected schema:
+    - id: text (primary key, composite of source + source_id)
+    - source: text (hn_ask, hn_show, producthunt)
+    - source_id: text (original ID from source)
+    - title: text
+    - description: text
+    - url: text
+    - external_url: text
+    - author: text
+    - score: int
+    - comments: int
+    - github_url: text (nullable)
+    - github_data: jsonb (nullable)
+    - topics: text[] (nullable)
+    - created_at: timestamptz
+    - fetched_at: timestamptz
+    """
+    source = record.get("source", "unknown")
+    source_id = str(record.get("id", ""))
+
+    # Create composite ID
+    composite_id = f"{source}:{source_id}"
+
+    # Normalize fields based on source
+    if source in ("hn_ask", "hn_show"):
+        return {
+            "id": composite_id,
+            "source": source,
+            "source_id": source_id,
+            "title": record.get("title", ""),
+            "description": record.get("text", ""),  # HN uses 'text'
+            "url": record.get("url", ""),
+            "external_url": record.get("external_url"),
+            "author": record.get("author"),
+            "score": record.get("score", 0),
+            "comments": record.get("descendants", 0),  # HN uses 'descendants'
+            "github_url": record.get("github_url"),
+            "github_data": record.get("github"),
+            "topics": None,
+            "created_at": record.get("created_iso"),
+        }
+    elif source == "producthunt":
+        # Combine tagline and description
+        tagline = record.get("tagline", "")
+        desc = record.get("description", "")
+        full_desc = f"{tagline}\n\n{desc}".strip() if tagline else desc
+
+        # Get maker as author
+        makers = record.get("makers", [])
+        author = makers[0].get("username") if makers else None
+
+        return {
+            "id": composite_id,
+            "source": source,
+            "source_id": source_id,
+            "title": record.get("title", ""),
+            "description": full_desc,
+            "url": record.get("url", ""),
+            "external_url": record.get("external_url"),
+            "author": author,
+            "score": record.get("votes", 0),
+            "comments": record.get("comments", 0),
+            "github_url": record.get("github_url"),
+            "github_data": record.get("github"),
+            "topics": record.get("topics"),
+            "created_at": record.get("created_iso"),
+        }
+    else:
+        # Generic fallback
+        return {
+            "id": composite_id,
+            "source": source,
+            "source_id": source_id,
+            "title": record.get("title", ""),
+            "description": record.get("description", ""),
+            "url": record.get("url", ""),
+            "external_url": record.get("external_url"),
+            "author": record.get("author"),
+            "score": record.get("score", 0),
+            "comments": record.get("comments", 0),
+            "github_url": record.get("github_url"),
+            "github_data": record.get("github"),
+            "topics": record.get("topics"),
+            "created_at": record.get("created_iso"),
         }
 
-    def upsert(self, table: str, records: list[dict], on_conflict: str = "hn_id") -> dict:
-        """Upsert records to a table."""
-        url = f"{self.base_url}/rest/v1/{table}"
 
-        # Add on_conflict parameter for upsert behavior
-        headers = self.headers.copy()
-        headers["Prefer"] = f"resolution=merge-duplicates,return=minimal"
+def upsert_records(client: Client, records: list[dict], table: str = "opportunities") -> int:
+    """
+    Upsert records to Supabase table.
 
-        resp = requests.post(
-            url,
-            headers=headers,
-            json=records,
-            params={"on_conflict": on_conflict},
-            timeout=30,
-        )
+    Returns number of records upserted.
+    """
+    if not records:
+        return 0
 
-        if resp.status_code not in (200, 201, 204):
-            raise Exception(f"Supabase error {resp.status_code}: {resp.text}")
+    # Normalize all records
+    normalized = [normalize_record(r) for r in records]
 
-        return {"status": "ok", "count": len(records)}
+    # Upsert in batches
+    batch_size = 100
+    upserted = 0
 
-
-def upsert_records(
-    client: SupabaseClient,
-    records: list[dict],
-    table: str = "opportunities",
-    batch_size: int = 50,
-) -> tuple[int, int]:
-    """Upsert records to Supabase in batches."""
-
-    success = 0
-    failed = 0
-
-    for i in range(0, len(records), batch_size):
-        batch = records[i:i + batch_size]
-        transformed = [transform_record(r) for r in batch]
+    for i in range(0, len(normalized), batch_size):
+        batch = normalized[i:i + batch_size]
 
         try:
-            client.upsert(table, transformed)
-            success += len(batch)
-            print(f"  Upserted batch {i // batch_size + 1}: {len(batch)} records")
+            result = client.table(table).upsert(
+                batch,
+                on_conflict="id",
+            ).execute()
+
+            upserted += len(batch)
+            print(f"    Upserted batch {i // batch_size + 1}: {len(batch)} records")
 
         except Exception as e:
-            failed += len(batch)
-            print(f"  ERROR batch {i // batch_size + 1}: {e}")
+            print(f"    ERROR upserting batch: {e}")
+            # Continue with next batch
 
-    return success, failed
+    return upserted
+
+
+def load_jsonl_file(path: Path) -> list[dict]:
+    """Load records from JSONL file."""
+    records = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                records.append(json.loads(line))
+    return records
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Load matched HN posts to Supabase",
+        description="Load opportunities to Supabase",
     )
     parser.add_argument(
-        "--input",
+        "--input-dir",
         required=True,
-        help="Input directory containing *_matched.jsonl files",
+        help="Input directory containing JSONL files",
     )
     parser.add_argument(
         "--table",
@@ -132,83 +187,62 @@ def main():
         help="Supabase table name (default: opportunities)",
     )
     parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=50,
-        help="Batch size for upserts (default: 50)",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would be uploaded without actually uploading",
+        help="Parse files but don't upload to Supabase",
     )
 
     args = parser.parse_args()
 
-    # Load env
-    load_dotenv()
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_KEY")
-
-    if not supabase_url or not supabase_key:
-        print("ERROR: SUPABASE_URL and SUPABASE_KEY must be set in .env")
-        print("Get these from your Supabase project settings > API")
+    input_dir = Path(args.input_dir)
+    if not input_dir.exists():
+        print(f"ERROR: Input directory does not exist: {input_dir}")
         sys.exit(1)
-
-    input_path = Path(args.input)
 
     print("=" * 60)
     print("BUILD SIGNALS - Supabase Loader")
     print("=" * 60)
-    print(f"input:      {input_path}")
-    print(f"table:      {args.table}")
-    print(f"batch_size: {args.batch_size}")
-    print(f"dry_run:    {args.dry_run}")
+    print(f"input: {input_dir}")
+    print(f"table: {args.table}")
+    print(f"mode:  {'DRY RUN' if args.dry_run else 'LIVE'}")
     print("=" * 60)
     print()
 
-    # Load records
-    print("[1] Loading matched files...")
-    if not input_path.is_dir():
-        print(f"ERROR: {input_path} is not a directory")
-        sys.exit(1)
-
-    records = load_matched_files(input_path)
-
-    if not records:
-        print("No records found to upload.")
+    # Find all JSONL files
+    jsonl_files = list(input_dir.glob("*.jsonl"))
+    if not jsonl_files:
+        print("No JSONL files found in input directory")
         sys.exit(0)
 
-    print(f"\nTotal records to upload: {len(records)}")
+    # Load all records
+    all_records = []
+    for jsonl_file in jsonl_files:
+        print(f"[*] Loading {jsonl_file.name}...")
+        records = load_jsonl_file(jsonl_file)
+        all_records.extend(records)
+        print(f"    Loaded {len(records)} records")
+
+    print()
+    print(f"Total records to upload: {len(all_records)}")
     print()
 
-    # Dry run - show sample
     if args.dry_run:
-        print("[DRY RUN] Sample transformed record:")
-        sample = transform_record(records[0])
-        for key, value in sample.items():
-            if key == "github_repos":
-                print(f"  {key}: [{len(value)} repos]")
-            elif key == "text":
-                text_preview = str(value)[:50] + "..." if len(str(value)) > 50 else value
-                print(f"  {key}: {text_preview}")
-            else:
-                print(f"  {key}: {value}")
-        print("\nNo data was uploaded. Remove --dry-run to upload.")
-        sys.exit(0)
+        print("DRY RUN - skipping Supabase upload")
+        # Print sample normalized record
+        if all_records:
+            sample = normalize_record(all_records[0])
+            print("\nSample normalized record:")
+            print(json.dumps(sample, indent=2, default=str))
+    else:
+        print("[*] Uploading to Supabase...")
+        client = get_supabase_client()
+        upserted = upsert_records(client, all_records, args.table)
+        print()
+        print(f"Successfully upserted {upserted} records")
 
-    # Connect and upload
-    print("[2] Connecting to Supabase...")
-    client = SupabaseClient(supabase_url, supabase_key)
-    print("  Ready!")
     print()
-
-    print("[3] Upserting records...")
-    success, failed = upsert_records(client, records, args.table, args.batch_size)
-    print()
-
     print("=" * 60)
-    print(f"Finished. Success: {success}, Failed: {failed}")
+    print("Finished.")
     print("=" * 60)
 
 

@@ -2,43 +2,92 @@ name: Refresh Build Signals Data
 
 on:
   schedule:
-    # Run daily at 6 AM UTC (adjust as needed)
+    # Run daily at 6 AM UTC
     - cron: '0 6 * * *'
   workflow_dispatch:
-    # Allow manual trigger from GitHub UI
+    inputs:
+      hn_days:
+        description: 'Days of HN data to fetch'
+        required: false
+        default: '7'
+      ph_limit:
+        description: 'Max Product Hunt posts to fetch'
+        required: false
+        default: '50'
+
+env:
+  PYTHON_VERSION: '3.11'
 
 jobs:
-  refresh:
+  fetch-and-load:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Fetch HN posts (last 7 days)
-        run: python -m scripts.hn_listener --days 7
-
-      - name: Match to GitHub repos
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          # Read the latest run directory
-          LATEST_RUN=$(cat runs/latest)
-          python -m scripts.github_matcher --input "$LATEST_RUN"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Upload to Supabase
+      - name: Create run directory
+        id: run_id
+        run: |
+          RUN_ID=$(date -u +"%Y%m%d_%H%M%S")
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          mkdir -p runs/$RUN_ID
+
+      - name: Fetch Hacker News data
+        run: |
+          python scripts/hn_listener.py \
+            --days ${{ github.event.inputs.hn_days || '7' }} \
+            --limit 200 \
+            --out-dir runs/${{ steps.run_id.outputs.run_id }}
+
+      - name: Fetch Product Hunt data
+        env:
+          PH_TOKEN: ${{ secrets.PH_TOKEN }}
+        run: |
+          python scripts/fetch_producthunt.py \
+            --days ${{ github.event.inputs.hn_days || '7' }} \
+            --limit ${{ github.event.inputs.ph_limit || '100' }} \
+            --min-votes 50 \
+            --out-dir runs/${{ steps.run_id.outputs.run_id }}
+
+      - name: Match GitHub repos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/match_github.py \
+            --input runs/${{ steps.run_id.outputs.run_id }}
+
+      - name: Load to Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          LATEST_RUN=$(cat runs/latest)
-          python -m scripts.supabase_loader --input "$LATEST_RUN"
+          python scripts/supabase_loader.py \
+            --input-dir runs/${{ steps.run_id.outputs.run_id }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-signals-${{ steps.run_id.outputs.run_id }}
+          path: runs/${{ steps.run_id.outputs.run_id }}/
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## Build Signals Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ steps.run_id.outputs.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Generated" >> $GITHUB_STEP_SUMMARY
+          ls -la runs/${{ steps.run_id.outputs.run_id }}/ >> $GITHUB_STEP_SUMMARY
