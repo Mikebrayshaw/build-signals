@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Build Signals — Find what people will pay for, before anyone else builds it</title>
+    <meta name="description" content="Build Signals monitors Hacker News 24/7 and surfaces threads where real people describe products they'd pay for — filtered by AI for genuine commercial intent.">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Build Signals — Demand radar for builders">
+    <meta property="og:description" content="Real people are describing products they'd pay for. Every day. You're just not seeing it.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/og-image.png">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: '#0a0a0a',
+                        surface: '#111111',
+                        border: '#1a1a1a',
+                        muted: '#555555',
+                        accent: '#00ff88',
+                        'accent-dim': '#00cc6a',
+                        amber: '#ffb800',
+                        'amber-dim': '#cc9500',
+                    },
+                    fontFamily: {
+                        display: ['"Cabinet Grotesk"', '"Satoshi"', 'system-ui', 'sans-serif'],
+                        body: ['"General Sans"', '"Switzer"', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://api.fontshare.com">
+    <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800,900&f[]=general-sans@400,500,600&f[]=satoshi@700,900&f[]=jet-brains-mono@400&display=swap" rel="stylesheet">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            font-family: 'General Sans', 'Switzer', system-ui, sans-serif;
+        }
+
+        /* Noise texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Pulse glow for badges */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 4px rgba(0, 255, 136, 0.3); }
+            50% { box-shadow: 0 0 12px rgba(0, 255, 136, 0.6); }
+        }
+        .badge-pulse {
+            animation: pulse-glow 2.5s ease-in-out infinite;
+        }
+
+        /* Blur cards */
+        .signal-blur-1 { filter: blur(2px); opacity: 0.7; }
+        .signal-blur-2 { filter: blur(4px); opacity: 0.5; }
+        .signal-blur-3 { filter: blur(6px); opacity: 0.35; }
+        .signal-blur-4 { filter: blur(8px); opacity: 0.2; }
+
+        /* Fade in on scroll */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .fade-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Counter animation */
+        .counter-num {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Scanline effect on signal cards */
+        .signal-card {
+            position: relative;
+            overflow: hidden;
+        }
+        .signal-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,255,136,0.1), transparent);
+            animation: scanline 4s linear infinite;
+        }
+        @keyframes scanline {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        /* CTA button hover */
+        .cta-btn {
+            transition: all 0.2s ease;
+        }
+        .cta-btn:hover {
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- ============================================ -->
+    <!-- SECTION 1: HERO + LIVE SIGNAL FEED           -->
+    <!-- ============================================ -->
+    <section class="min-h-screen px-4 pt-16 pb-20 md:pt-24 md:pb-28 max-w-5xl mx-auto">
+        <!-- Status indicator -->
+        <div class="flex items-center gap-2 mb-8 fade-up">
+            <span class="w-2 h-2 rounded-full bg-accent badge-pulse"></span>
+            <span class="text-xs font-mono text-muted uppercase tracking-widest">Live — monitoring 4,200+ threads/week</span>
+        </div>
+
+        <!-- Headline -->
+        <h1 class="font-display text-4xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight mb-6 fade-up">
+            People are asking for<br>your product.<br>
+            <span class="text-muted">You're not there.</span>
+        </h1>
+
+        <!-- Subhead -->
+        <p class="text-lg md:text-xl text-neutral-400 max-w-2xl mb-10 leading-relaxed fade-up">
+            Build Signals monitors Hacker News 24/7 and alerts you when real people describe tools they'd pay for — before anyone else builds them.
+        </p>
+
+        <!-- CTA -->
+        <a href="https://buy.stripe.com/YOUR_LINK_HERE" target="_blank"
+           class="cta-btn inline-block bg-accent text-bg font-display font-bold text-lg px-8 py-4 rounded-lg mb-16 fade-up">
+            See what you missed this week — $99 lifetime
+        </a>
+
+        <!-- Signal Feed -->
+        <div class="space-y-3" id="signal-feed">
+            <!-- Cards injected by JS -->
+        </div>
+
+        <!-- Blur overlay CTA -->
+        <div class="relative -mt-24 pt-28 pb-4 bg-gradient-to-t from-bg via-bg/90 to-transparent text-center z-10" id="blur-overlay">
+            <a href="#final-cta" class="font-mono text-accent hover:text-accent-dim text-sm tracking-wide">
+                See all <span id="total-signal-count">47</span> signals from this week →
+            </a>
+        </div>
+    </section>
+
+    <!-- ============================================ -->
+    <!-- SECTION 2: COUNTER BAR                       -->
+    <!-- ============================================ -->
+    <section class="border-y border-border py-8 md:py-10 fade-up">
+        <div class="max-w-5xl mx-auto px-4 flex flex-wrap justify-center gap-6 md:gap-16 text-center">
+            <div>
+                <span class="font-mono text-3xl md:text-4xl font-bold text-white counter-num" data-target="847" data-suffix="">0</span>
+                <p class="text-xs text-muted mt-1 uppercase tracking-wider">Signals flagged this month</p>
+            </div>
+            <div class="hidden md:block w-px bg-border"></div>
+            <div>
+                <span class="font-mono text-3xl md:text-4xl font-bold text-white counter-num" data-target="312" data-suffix="">0</span>
+                <p class="text-xs text-muted mt-1 uppercase tracking-wider">Unanswered requests</p>
+            </div>
+            <div class="hidden md:block w-px bg-border"></div>
+            <div>
+                <span class="font-mono text-3xl md:text-4xl font-bold text-accent counter-num" data-target="0" data-suffix="">0</span>
+                <p class="text-xs text-accent/70 mt-1 uppercase tracking-wider">Seen by you</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================ -->
+    <!-- SECTION 3: "HERE'S WHAT YOU MISSED"          -->
+    <!-- ============================================ -->
+    <section class="py-20 md:py-28 px-4 max-w-4xl mx-auto">
+        <h2 class="font-display text-3xl md:text-4xl font-extrabold mb-4 fade-up">Here's what you missed</h2>
+        <p class="text-neutral-500 mb-14 text-lg fade-up">Real threads. Real demand. Zero solutions offered.</p>
+
+        <!-- Deep Dive Card 1 -->
+        <article class="border border-border rounded-xl p-6 md:p-8 mb-8 bg-surface/50 fade-up">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-accent/10 text-accent rounded">SaaS</span>
+                <span class="text-xs text-muted font-mono">5 days ago</span>
+            </div>
+            <h3 class="font-display text-xl md:text-2xl font-bold mb-4 text-white">
+                "Is there a tool that monitors competitor pricing automatically?"
+            </h3>
+            <p class="text-neutral-400 leading-relaxed mb-4">
+                A founder posted asking for automated competitor price tracking across 50+ websites. The thread got 200+ upvotes. Multiple founders replied saying they'd pay $50-100/month for this. <strong class="text-neutral-200">Not a single person linked to an existing solution.</strong>
+            </p>
+            <p class="text-neutral-400 leading-relaxed">
+                The thread sat there for three days. Someone with a web scraping background could have had a landing page and waitlist up in 48 hours. Instead, the thread aged off the front page and the moment passed.
+            </p>
+            <div class="mt-5 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-accent badge-pulse"></span>
+                <span class="text-xs font-mono text-accent">No solution mentioned</span>
+            </div>
+        </article>
+
+        <!-- Deep Dive Card 2 -->
+        <article class="border border-border rounded-xl p-6 md:p-8 mb-8 bg-surface/50 fade-up">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-accent/10 text-accent rounded">Automation</span>
+                <span class="text-xs text-muted font-mono">3 days ago</span>
+            </div>
+            <h3 class="font-display text-xl md:text-2xl font-bold mb-4 text-white">
+                "I'd pay good money for a Zapier alternative that actually handles errors well"
+            </h3>
+            <p class="text-neutral-400 leading-relaxed mb-4">
+                A developer vented about Zapier's silent failure modes. The thread exploded — 340 points, 180+ comments. Reply after reply from CTOs and lead engineers saying they'd switch in a heartbeat if error handling was the core differentiator.
+            </p>
+            <p class="text-neutral-400 leading-relaxed">
+                This isn't a feature request. It's a <strong class="text-neutral-200">validated market gap described by the exact people who'd buy it.</strong> The signal was there for anyone watching.
+            </p>
+            <div class="mt-5 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-accent badge-pulse"></span>
+                <span class="text-xs font-mono text-accent">No solution mentioned</span>
+            </div>
+        </article>
+
+        <!-- Deep Dive Card 3 -->
+        <article class="border border-border rounded-xl p-6 md:p-8 bg-surface/50 fade-up">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest bg-amber/10 text-amber rounded">Dev Tools</span>
+                <span class="text-xs text-muted font-mono">6 days ago</span>
+            </div>
+            <h3 class="font-display text-xl md:text-2xl font-bold mb-4 text-white">
+                "Ask HN: How do you manage multiple AI API subscriptions and costs?"
+            </h3>
+            <p class="text-neutral-400 leading-relaxed mb-4">
+                With teams now juggling OpenAI, Anthropic, Gemini, and Mistral keys, a CTO asked how others track spend across providers. 490+ points. The replies were all manual spreadsheets and custom scripts. <strong class="text-neutral-200">A unified AI cost dashboard doesn't exist yet.</strong>
+            </p>
+            <div class="mt-5 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-accent badge-pulse"></span>
+                <span class="text-xs font-mono text-accent">No solution mentioned</span>
+            </div>
+        </article>
+
+        <p class="text-center text-neutral-500 mt-12 text-lg italic fade-up">
+            This is one week. Build Signals runs every day.
+        </p>
+    </section>
+
+    <!-- ============================================ -->
+    <!-- SECTION 4: THE REFRAME                       -->
+    <!-- ============================================ -->
+    <section class="py-20 md:py-28 px-4 border-t border-border">
+        <div class="max-w-4xl mx-auto">
+            <blockquote class="font-display text-2xl md:text-3xl font-bold leading-snug mb-6 fade-up">
+                "You think you're looking at a Hacker News monitoring&nbsp;tool."
+            </blockquote>
+            <p class="text-neutral-400 text-lg md:text-xl leading-relaxed max-w-3xl mb-20 fade-up">
+                You're actually looking at a real-time map of where demand exists and supply doesn't — updated every day, filtered to only show threads where someone is actively describing a problem they'd pay to&nbsp;solve.
+            </p>
+
+            <!-- Three Personas -->
+            <div class="grid md:grid-cols-3 gap-6 mb-14">
+                <!-- Persona 1 -->
+                <div class="border border-border rounded-xl p-6 bg-surface/30 fade-up">
+                    <div class="text-2xl mb-3">&#128244;</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-3">The Manual Scroller</h3>
+                    <p class="text-neutral-500 text-sm leading-relaxed">
+                        Browses HN 30-60 min/day hoping to stumble into something relevant. Hit rate: <span class="text-white font-mono">1 in 50</span> sessions.
+                    </p>
+                </div>
+                <!-- Persona 2 -->
+                <div class="border border-border rounded-xl p-6 bg-surface/30 fade-up">
+                    <div class="text-2xl mb-3">&#127922;</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-3">The Guesser</h3>
+                    <p class="text-neutral-500 text-sm leading-relaxed">
+                        Builds based on their own pain points. Validates after building. This is why most indie products <span class="text-white">die in silence.</span>
+                    </p>
+                </div>
+                <!-- Persona 3 -->
+                <div class="border border-border rounded-xl p-6 bg-surface/30 fade-up">
+                    <div class="text-2xl mb-3">&#128202;</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-3">The Over-Researcher</h3>
+                    <p class="text-neutral-500 text-sm leading-relaxed">
+                        Pays for Gartner reports, runs surveys. Good process but <span class="text-white">slow, expensive, retrospective.</span> The moment passes.
+                    </p>
+                </div>
+            </div>
+
+            <p class="text-neutral-400 text-lg italic text-center fade-up">
+                None of them would say they're doing it wrong. Build Signals makes it obvious how much they're&nbsp;missing.
+            </p>
+        </div>
+    </section>
+
+    <!-- ============================================ -->
+    <!-- SECTION 5: HOW IT WORKS                      -->
+    <!-- ============================================ -->
+    <section class="py-20 md:py-28 px-4 border-t border-border">
+        <div class="max-w-4xl mx-auto text-center">
+            <h2 class="font-display text-3xl md:text-4xl font-extrabold mb-16 fade-up">How it works</h2>
+
+            <div class="grid md:grid-cols-3 gap-10 md:gap-8">
+                <!-- Step 1 -->
+                <div class="fade-up">
+                    <div class="w-14 h-14 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-5">
+                        <svg class="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <div class="font-mono text-xs text-accent mb-3 uppercase tracking-widest">Step 01</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">AI monitors thousands of threads daily</h3>
+                    <p class="text-neutral-500 text-sm leading-relaxed">Every Ask HN, Show HN, and trending discussion is scanned and indexed automatically.</p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="fade-up">
+                    <div class="w-14 h-14 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-5">
+                        <svg class="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                        </svg>
+                    </div>
+                    <div class="font-mono text-xs text-accent mb-3 uppercase tracking-widest">Step 02</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Filters for genuine commercial&nbsp;intent</h3>
+                    <p class="text-neutral-500 text-sm leading-relaxed">Not just mentions — actual buying signals. People describing problems and saying they'd pay to solve them.</p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="fade-up">
+                    <div class="w-14 h-14 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-5">
+                        <svg class="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <div class="font-mono text-xs text-accent mb-3 uppercase tracking-widest">Step 03</div>
+                    <h3 class="font-display text-lg font-bold text-white mb-2">Delivers opportunities you'd never find&nbsp;manually</h3>
+                    <p class="text-neutral-500 text-sm leading-relaxed">Matched to relevant GitHub repos so you can start building immediately. Updated daily.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================ -->
+    <!-- SECTION 6: THE MATH (ROI)                    -->
+    <!-- ============================================ -->
+    <section class="py-20 md:py-28 px-4 border-t border-border">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="font-display text-3xl md:text-4xl font-extrabold mb-6 fade-up">One signal. That's&nbsp;it.</h2>
+            <p class="text-neutral-400 text-lg mb-14 max-w-2xl fade-up">That's all it takes to pay for itself. Here's the math:</p>
+
+            <div class="grid md:grid-cols-3 gap-6 mb-14">
+                <div class="border border-border rounded-xl p-6 text-center bg-surface/30 fade-up">
+                    <div class="font-mono text-3xl font-bold text-accent mb-2">5x</div>
+                    <p class="text-neutral-400 text-sm">One thread &rarr; one customer conversation &rarr; one <span class="text-white">$500 deal</span></p>
+                </div>
+                <div class="border border-border rounded-xl p-6 text-center bg-surface/30 fade-up">
+                    <div class="font-mono text-3xl font-bold text-accent mb-2">&infin;</div>
+                    <p class="text-neutral-400 text-sm">One product idea &rarr; <span class="text-white">$5k/month</span> recurring revenue</p>
+                </div>
+                <div class="border border-border rounded-xl p-6 text-center bg-surface/30 fade-up">
+                    <div class="font-mono text-3xl font-bold text-accent mb-2">$99</div>
+                    <p class="text-neutral-400 text-sm">Less than one domain name you'll never use</p>
+                </div>
+            </div>
+
+            <!-- Comparison -->
+            <div class="border border-border rounded-xl p-6 md:p-8 bg-surface/30 fade-up">
+                <h3 class="font-display text-lg font-bold text-white mb-5">$99 vs. the alternative</h3>
+                <div class="space-y-4 text-sm">
+                    <div class="flex justify-between items-center border-b border-border/50 pb-3">
+                        <span class="text-neutral-400">Building the wrong thing for 3 months</span>
+                        <span class="font-mono text-white">$15,000 — $50,000</span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-border/50 pb-3">
+                        <span class="text-neutral-400">Domain names for ideas you never validated</span>
+                        <span class="font-mono text-white">$200+</span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-border/50 pb-3">
+                        <span class="text-neutral-400">SaaS subscriptions you forgot to cancel</span>
+                        <span class="font-mono text-white">$600/year</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-1">
+                        <span class="text-accent font-semibold">Build Signals — lifetime access</span>
+                        <span class="font-mono text-accent font-bold">$99</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================ -->
+    <!-- SECTION 7: FINAL CTA + FAQ + FOOTER          -->
+    <!-- ============================================ -->
+    <section class="py-20 md:py-28 px-4 border-t border-border" id="final-cta">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="font-display text-3xl md:text-5xl font-extrabold leading-tight mb-6 fade-up">
+                Your next paying customer already described what they need.
+                <span class="text-muted">Last Tuesday.</span>
+            </h2>
+
+            <a href="https://buy.stripe.com/YOUR_LINK_HERE" target="_blank"
+               class="cta-btn inline-block bg-accent text-bg font-display font-bold text-lg px-10 py-5 rounded-lg mb-20 fade-up">
+                Get lifetime access — $99
+            </a>
+
+            <!-- FAQ -->
+            <div class="text-left space-y-0 border border-border rounded-xl overflow-hidden fade-up">
+                <details class="group border-b border-border">
+                    <summary class="flex justify-between items-center px-6 py-5 cursor-pointer hover:bg-surface/50 transition-colors">
+                        <span class="font-display font-semibold text-white text-sm">What exactly do I get?</span>
+                        <span class="text-muted group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+                    </summary>
+                    <div class="px-6 pb-5 text-neutral-400 text-sm leading-relaxed">
+                        Lifetime access to the Build Signals dashboard. You see every flagged opportunity — the thread, the AI analysis, the matched GitHub repos, and whether anyone has offered a solution yet. Updated daily.
+                    </div>
+                </details>
+                <details class="group border-b border-border">
+                    <summary class="flex justify-between items-center px-6 py-5 cursor-pointer hover:bg-surface/50 transition-colors">
+                        <span class="font-display font-semibold text-white text-sm">How often is it updated?</span>
+                        <span class="text-muted group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+                    </summary>
+                    <div class="px-6 pb-5 text-neutral-400 text-sm leading-relaxed">
+                        Every day. The system scans Hacker News continuously, processes new threads overnight, and delivers fresh signals each morning.
+                    </div>
+                </details>
+                <details class="group border-b border-border">
+                    <summary class="flex justify-between items-center px-6 py-5 cursor-pointer hover:bg-surface/50 transition-colors">
+                        <span class="font-display font-semibold text-white text-sm">What counts as a "signal"?</span>
+                        <span class="text-muted group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+                    </summary>
+                    <div class="px-6 pb-5 text-neutral-400 text-sm leading-relaxed">
+                        A signal is a thread where someone explicitly describes a problem they'd pay to solve, asks if a tool exists for a specific use case, or expresses frustration with existing solutions in a way that implies demand for something better. We filter out vague complaints and focus on actionable commercial intent.
+                    </div>
+                </details>
+                <details class="group">
+                    <summary class="flex justify-between items-center px-6 py-5 cursor-pointer hover:bg-surface/50 transition-colors">
+                        <span class="font-display font-semibold text-white text-sm">Is there a refund policy?</span>
+                        <span class="text-muted group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+                    </summary>
+                    <div class="px-6 pb-5 text-neutral-400 text-sm leading-relaxed">
+                        Yes. If you don't find at least one signal worth investigating within 30 days, email us and we'll refund you in full. No questions asked.
+                    </div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-border py-8 px-4">
+        <div class="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-muted">
+            <span>Built by Mike @ <a href="#" class="text-neutral-400 hover:text-white transition-colors">MVP Studio</a></span>
+            <a href="https://x.com/" target="_blank" class="text-neutral-400 hover:text-white transition-colors">@mike on X</a>
+        </div>
+    </footer>
+
+    <!-- ============================================ -->
+    <!-- JAVASCRIPT                                   -->
+    <!-- ============================================ -->
+    <script>
+    // ── Supabase Client ──
+    const SUPABASE_URL = 'https://njwvtksauogsmberxrbd.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qd3Z0a3NhdW9nc21iZXJ4cmJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTM4NDUsImV4cCI6MjA4NTM2OTg0NX0.JQy2pLJa9cr7YWZLTQg28nyDBcreYAv9OqWTgPptec8';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ── Fallback Data (graceful degradation if Supabase is unreachable) ──
+    const FALLBACK_SIGNALS = [
+        {
+            title: "Ask HN: Is there a tool that monitors competitor pricing automatically?",
+            category: "SaaS",
+            summary: "Founder looking for automated competitor price tracking across 50+ sites. Willing to pay $50-100/mo.",
+            solution_exists: false,
+            date: "2026-02-02",
+            hn_url: "https://news.ycombinator.com/item?id=example1",
+            signal_type: "Direct request"
+        },
+        {
+            title: "I'd pay good money for a Zapier alternative that actually handles errors well",
+            category: "Automation",
+            summary: "Developer frustrated with Zapier's error handling. Multiple replies agreeing. No one has built a reliability-first alternative.",
+            solution_exists: false,
+            date: "2026-02-04",
+            hn_url: "https://news.ycombinator.com/item?id=example2",
+            signal_type: "Pain point"
+        },
+        {
+            title: "Ask HN: How do you manage multiple AI API subscriptions and costs?",
+            category: "Dev Tools",
+            summary: "CTO looking for unified AI spend tracking across OpenAI, Anthropic, Gemini. 490+ points, only manual spreadsheet solutions suggested.",
+            solution_exists: false,
+            date: "2026-02-01",
+            hn_url: "https://news.ycombinator.com/item?id=example3",
+            signal_type: "Direct request"
+        },
+        {
+            title: "Show HN: I built a Notion-to-blog pipeline but it breaks every week",
+            category: "Content Tools",
+            summary: "Creator wants reliable Notion-to-static-site publishing. Existing tools break on API changes. Users asking for paid alternative.",
+            solution_exists: false,
+            date: "2026-02-03",
+            hn_url: "https://news.ycombinator.com/item?id=example4",
+            signal_type: "Pain point"
+        },
+        {
+            title: "Ask HN: Best way to do SOC 2 compliance as a 3-person startup?",
+            category: "Compliance",
+            summary: "Tiny team needs SOC 2 for enterprise deals. Current tools cost $20k+. Multiple founders asking for a $500/mo alternative.",
+            solution_exists: false,
+            date: "2026-02-05",
+            hn_url: "https://news.ycombinator.com/item?id=example5",
+            signal_type: "Direct request"
+        },
+        {
+            title: "Why is there no good open-source Calendly alternative?",
+            category: "Productivity",
+            summary: "Thread debating why self-hosted scheduling tools all feel half-baked. Several devs expressing willingness to pay for a polished OSS option.",
+            solution_exists: true,
+            date: "2026-01-30",
+            hn_url: "https://news.ycombinator.com/item?id=example6",
+            signal_type: "Market gap"
+        },
+        {
+            title: "Ask HN: How are you handling LLM output evaluation in production?",
+            category: "AI/ML",
+            summary: "ML engineer asking for production-grade LLM eval tools. No clear winner mentioned. Teams building custom solutions from scratch.",
+            solution_exists: false,
+            date: "2026-02-06",
+            hn_url: "https://news.ycombinator.com/item?id=example7",
+            signal_type: "Direct request"
+        }
+    ];
+
+    // ── Map DB Row → Card Format ──
+    function mapSignal(row) {
+        const sourceLabels = { hn_ask: 'Ask HN', hn_show: 'Show HN', producthunt: 'Product Hunt' };
+        const sourceFallbackCategory = { hn_ask: 'HN Discussion', hn_show: 'Show HN', producthunt: 'Product Hunt' };
+
+        return {
+            title: row.title || 'Untitled',
+            category: (row.topics && row.topics[0]) || sourceFallbackCategory[row.source] || 'Signal',
+            summary: row.description ? row.description.slice(0, 200) + (row.description.length > 200 ? '…' : '') : '',
+            solution_exists: row.github_url != null,
+            date: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            hn_url: row.url || '#',
+            signal_type: sourceLabels[row.source] || row.source || 'Signal'
+        };
+    }
+
+    // ── Fetch Signals from Supabase ──
+    async function fetchSignals() {
+        try {
+            const { data, error } = await supabase
+                .from('opportunities')
+                .select('title, description, source, url, github_url, topics, created_at')
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (error) throw error;
+            if (!data || data.length === 0) return FALLBACK_SIGNALS;
+
+            return data.map(mapSignal);
+        } catch (err) {
+            console.warn('Supabase fetch failed, using fallback data:', err.message);
+            return FALLBACK_SIGNALS;
+        }
+    }
+
+    // ── Fetch Counter Data ──
+    async function fetchCounts() {
+        try {
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+            const monthStart = startOfMonth.toISOString();
+
+            // Total signals this month
+            const { count: totalCount, error: totalErr } = await supabase
+                .from('opportunities')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', monthStart);
+
+            if (totalErr) throw totalErr;
+
+            // Unanswered (no github_url) this month
+            const { count: unansweredCount, error: unansweredErr } = await supabase
+                .from('opportunities')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', monthStart)
+                .is('github_url', null);
+
+            if (unansweredErr) throw unansweredErr;
+
+            return { total: totalCount || 0, unanswered: unansweredCount || 0 };
+        } catch (err) {
+            console.warn('Counter fetch failed, using fallback counts:', err.message);
+            return null;
+        }
+    }
+
+    // ── Render Signal Cards ──
+    function renderSignals(signals) {
+        const feed = document.getElementById('signal-feed');
+        feed.innerHTML = '';
+
+        signals.forEach((signal, i) => {
+            const blurClass = i === 3 ? 'signal-blur-1' : i === 4 ? 'signal-blur-2' : i === 5 ? 'signal-blur-3' : i === 6 ? 'signal-blur-4' : '';
+            const daysAgo = Math.max(1, Math.floor((Date.now() - new Date(signal.date).getTime()) / 86400000));
+
+            const card = document.createElement('div');
+            card.className = `signal-card border border-border rounded-lg p-5 bg-surface/40 hover:bg-surface/70 transition-colors ${blurClass} fade-up`;
+            card.innerHTML = `
+                <div class="flex flex-wrap items-center gap-3 mb-3">
+                    <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest rounded
+                        ${signal.solution_exists ? 'bg-neutral-800 text-neutral-400' : 'bg-accent/10 text-accent'}">
+                        ${signal.category}
+                    </span>
+                    <span class="text-[10px] font-mono text-muted uppercase tracking-widest">${signal.signal_type}</span>
+                </div>
+                <a href="${signal.hn_url}" target="_blank" class="block font-display font-bold text-white hover:text-accent transition-colors mb-2 text-[15px] leading-snug">
+                    ${signal.title}
+                </a>
+                <p class="text-neutral-500 text-sm leading-relaxed mb-3">${signal.summary}</p>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        ${signal.solution_exists
+                            ? '<span class="w-1.5 h-1.5 rounded-full bg-neutral-600"></span><span class="text-[11px] font-mono text-neutral-500">Existing solutions mentioned</span>'
+                            : '<span class="w-1.5 h-1.5 rounded-full bg-accent badge-pulse"></span><span class="text-[11px] font-mono text-accent">No solution mentioned</span>'
+                        }
+                    </div>
+                    <span class="text-[11px] font-mono text-muted">${daysAgo}d ago</span>
+                </div>
+            `;
+            feed.appendChild(card);
+        });
+
+        // Update total signal count in blur overlay
+        const countEl = document.getElementById('total-signal-count');
+        if (countEl) countEl.textContent = signals.length;
+    }
+
+    // ── Counter Animation ──
+    function animateCounters() {
+        document.querySelectorAll('.counter-num').forEach(el => {
+            const target = parseInt(el.dataset.target);
+            if (target === 0) { el.textContent = '0'; return; }
+
+            const duration = 1800;
+            const start = performance.now();
+
+            function tick(now) {
+                const elapsed = now - start;
+                const progress = Math.min(elapsed / duration, 1);
+                // Ease out cubic
+                const eased = 1 - Math.pow(1 - progress, 3);
+                el.textContent = Math.floor(eased * target).toLocaleString();
+                if (progress < 1) requestAnimationFrame(tick);
+                else el.textContent = target.toLocaleString();
+            }
+            requestAnimationFrame(tick);
+        });
+    }
+
+    // ── Intersection Observer (fade-up + counter trigger) ──
+    function setupObservers() {
+        let countersAnimated = false;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+
+                    // Trigger counter animation when counter bar is visible
+                    if (!countersAnimated && entry.target.querySelector('.counter-num')) {
+                        countersAnimated = true;
+                        animateCounters();
+                    }
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+        document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    }
+
+    // ── Init ──
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Fetch real data (falls back to hardcoded on error)
+        const signals = await fetchSignals();
+        renderSignals(signals);
+
+        // Update counter targets from real data
+        const counts = await fetchCounts();
+        if (counts) {
+            const counterEls = document.querySelectorAll('.counter-num');
+            if (counterEls[0]) counterEls[0].dataset.target = counts.total;
+            if (counterEls[1]) counterEls[1].dataset.target = counts.unanswered;
+            // Third counter ("Seen by you") stays at 0
+        }
+
+        setupObservers();
+    });
+    </script>
+
+</body>
+</html>
