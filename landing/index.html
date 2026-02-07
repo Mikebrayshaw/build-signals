@@ -595,23 +595,32 @@
     }
 
     // ── Intersection Observer (fade-up trigger) ──
-    function setupObservers() {
-        const observer = new IntersectionObserver((entries) => {
+    let observer;
+
+    function createObserver() {
+        observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     entry.target.classList.add('visible');
                 }
             });
         }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    }
 
+    function observeAll() {
         document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
     }
 
     // ── Init ──
-    document.addEventListener('DOMContentLoaded', async () => {
-        const signal = await fetchPreviewSignal();
-        renderPreview(signal);
-        setupObservers();
+    document.addEventListener('DOMContentLoaded', () => {
+        createObserver();
+        observeAll();
+
+        fetchPreviewSignal()
+            .then(signal => {
+                renderPreview(signal);
+                observeAll();
+            });
     });
     </script>
 
