@@ -89,9 +89,23 @@
             transform: translateY(0);
         }
 
-        /* Counter animation */
-        .counter-num {
-            font-variant-numeric: tabular-nums;
+        /* Blurred description with gate overlay */
+        .description-gated {
+            position: relative;
+        }
+        .description-gated .desc-text {
+            filter: blur(4px);
+            user-select: none;
+        }
+        .description-gated .desc-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 10, 10, 0.5);
+            border-radius: 0.5rem;
         }
 
         /* Scanline effect on signal cards */
@@ -151,9 +165,9 @@
         </p>
 
         <!-- CTA -->
-        <a href="https://buy.stripe.com/YOUR_LINK_HERE" target="_blank"
+        <a href="#subscribe"
            class="cta-btn inline-block bg-accent text-bg font-display font-bold text-lg px-8 py-4 rounded-lg mb-16 fade-up">
-            See what you missed this week — $99 lifetime
+            Get full access — $147 lifetime
         </a>
 
         <!-- Signal Feed -->
@@ -161,35 +175,70 @@
             <!-- Cards injected by JS -->
         </div>
 
-        <!-- Blur overlay CTA -->
-        <div class="relative -mt-24 pt-28 pb-4 bg-gradient-to-t from-bg via-bg/90 to-transparent text-center z-10" id="blur-overlay">
-            <a href="#final-cta" class="font-mono text-accent hover:text-accent-dim text-sm tracking-wide">
-                See all <span id="total-signal-count">47</span> signals from this week →
-            </a>
-        </div>
     </section>
 
     <!-- ============================================ -->
-    <!-- SECTION 2: COUNTER BAR                       -->
+    <!-- SECTION: SUBSCRIPTION GATE                   -->
     <!-- ============================================ -->
-    <section class="border-y border-border py-8 md:py-10 fade-up">
-        <div class="max-w-5xl mx-auto px-4 flex flex-wrap justify-center gap-6 md:gap-16 text-center">
-            <div>
-                <span class="font-mono text-3xl md:text-4xl font-bold text-white counter-num" data-target="847" data-suffix="">0</span>
-                <p class="text-xs text-muted mt-1 uppercase tracking-wider">Signals flagged this month</p>
+    <section class="py-20 md:py-28 px-4 border-t border-border" id="subscribe">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="font-display text-3xl md:text-5xl font-extrabold leading-tight mb-6 fade-up">
+                See all signals. Build faster.
+            </h2>
+            <p class="text-neutral-400 text-lg mb-12 fade-up">
+                The preview above is one signal. Subscribers get everything.
+            </p>
+
+            <div class="grid md:grid-cols-2 gap-8 mb-14 text-left">
+                <div class="border border-border rounded-xl p-6 bg-surface/30 fade-up">
+                    <ul class="space-y-4">
+                        <li class="flex items-start gap-3">
+                            <span class="text-accent mt-0.5">&#10003;</span>
+                            <div>
+                                <span class="text-white font-semibold">Full signal history</span>
+                                <p class="text-neutral-500 text-sm mt-0.5">Every opportunity we've ever flagged, searchable and unblurred.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-accent mt-0.5">&#10003;</span>
+                            <div>
+                                <span class="text-white font-semibold">GitHub solution links</span>
+                                <p class="text-neutral-500 text-sm mt-0.5">See which problems already have repos — and which are wide open.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="border border-border rounded-xl p-6 bg-surface/30 fade-up">
+                    <ul class="space-y-4">
+                        <li class="flex items-start gap-3">
+                            <span class="text-accent mt-0.5">&#10003;</span>
+                            <div>
+                                <span class="text-white font-semibold">Daily updates</span>
+                                <p class="text-neutral-500 text-sm mt-0.5">Fresh signals every morning. Never miss a window again.</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-accent mt-0.5">&#10003;</span>
+                            <div>
+                                <span class="text-white font-semibold">Search &amp; filter</span>
+                                <p class="text-neutral-500 text-sm mt-0.5">Filter by category, source, date, and solution status.</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
             </div>
-            <div class="hidden md:block w-px bg-border"></div>
-            <div>
-                <span class="font-mono text-3xl md:text-4xl font-bold text-white counter-num" data-target="312" data-suffix="">0</span>
-                <p class="text-xs text-muted mt-1 uppercase tracking-wider">Unanswered requests</p>
-            </div>
-            <div class="hidden md:block w-px bg-border"></div>
-            <div>
-                <span class="font-mono text-3xl md:text-4xl font-bold text-accent counter-num" data-target="0" data-suffix="">0</span>
-                <p class="text-xs text-accent/70 mt-1 uppercase tracking-wider">Seen by you</p>
+
+            <div class="fade-up">
+                <div class="font-mono text-4xl font-bold text-white mb-2">$147</div>
+                <p class="text-neutral-500 text-sm mb-6">One-time payment. Lifetime access.</p>
+                <a href="#"
+                   class="cta-btn inline-block bg-accent text-bg font-display font-bold text-lg px-10 py-5 rounded-lg">
+                    Subscribe Now
+                </a>
             </div>
         </div>
     </section>
+
 
     <!-- ============================================ -->
     <!-- SECTION 3: "HERE'S WHAT YOU MISSED"          -->
@@ -374,14 +423,14 @@
                     <p class="text-neutral-400 text-sm">One product idea &rarr; <span class="text-white">$5k/month</span> recurring revenue</p>
                 </div>
                 <div class="border border-border rounded-xl p-6 text-center bg-surface/30 fade-up">
-                    <div class="font-mono text-3xl font-bold text-accent mb-2">$99</div>
+                    <div class="font-mono text-3xl font-bold text-accent mb-2">$147</div>
                     <p class="text-neutral-400 text-sm">Less than one domain name you'll never use</p>
                 </div>
             </div>
 
             <!-- Comparison -->
             <div class="border border-border rounded-xl p-6 md:p-8 bg-surface/30 fade-up">
-                <h3 class="font-display text-lg font-bold text-white mb-5">$99 vs. the alternative</h3>
+                <h3 class="font-display text-lg font-bold text-white mb-5">$147 vs. the alternative</h3>
                 <div class="space-y-4 text-sm">
                     <div class="flex justify-between items-center border-b border-border/50 pb-3">
                         <span class="text-neutral-400">Building the wrong thing for 3 months</span>
@@ -397,7 +446,7 @@
                     </div>
                     <div class="flex justify-between items-center pt-1">
                         <span class="text-accent font-semibold">Build Signals — lifetime access</span>
-                        <span class="font-mono text-accent font-bold">$99</span>
+                        <span class="font-mono text-accent font-bold">$147</span>
                     </div>
                 </div>
             </div>
@@ -414,9 +463,9 @@
                 <span class="text-muted">Last Tuesday.</span>
             </h2>
 
-            <a href="https://buy.stripe.com/YOUR_LINK_HERE" target="_blank"
+            <a href="#subscribe"
                class="cta-btn inline-block bg-accent text-bg font-display font-bold text-lg px-10 py-5 rounded-lg mb-20 fade-up">
-                Get lifetime access — $99
+                Get lifetime access — $147
             </a>
 
             <!-- FAQ -->
@@ -478,217 +527,79 @@
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qd3Z0a3NhdW9nc21iZXJ4cmJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTM4NDUsImV4cCI6MjA4NTM2OTg0NX0.JQy2pLJa9cr7YWZLTQg28nyDBcreYAv9OqWTgPptec8';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // ── Fallback Data (graceful degradation if Supabase is unreachable) ──
-    const FALLBACK_SIGNALS = [
-        {
-            title: "Ask HN: Is there a tool that monitors competitor pricing automatically?",
-            category: "SaaS",
-            summary: "Founder looking for automated competitor price tracking across 50+ sites. Willing to pay $50-100/mo.",
-            solution_exists: false,
-            date: "2026-02-02",
-            hn_url: "https://news.ycombinator.com/item?id=example1",
-            signal_type: "Direct request"
-        },
-        {
-            title: "I'd pay good money for a Zapier alternative that actually handles errors well",
-            category: "Automation",
-            summary: "Developer frustrated with Zapier's error handling. Multiple replies agreeing. No one has built a reliability-first alternative.",
-            solution_exists: false,
-            date: "2026-02-04",
-            hn_url: "https://news.ycombinator.com/item?id=example2",
-            signal_type: "Pain point"
-        },
-        {
-            title: "Ask HN: How do you manage multiple AI API subscriptions and costs?",
-            category: "Dev Tools",
-            summary: "CTO looking for unified AI spend tracking across OpenAI, Anthropic, Gemini. 490+ points, only manual spreadsheet solutions suggested.",
-            solution_exists: false,
-            date: "2026-02-01",
-            hn_url: "https://news.ycombinator.com/item?id=example3",
-            signal_type: "Direct request"
-        },
-        {
-            title: "Show HN: I built a Notion-to-blog pipeline but it breaks every week",
-            category: "Content Tools",
-            summary: "Creator wants reliable Notion-to-static-site publishing. Existing tools break on API changes. Users asking for paid alternative.",
-            solution_exists: false,
-            date: "2026-02-03",
-            hn_url: "https://news.ycombinator.com/item?id=example4",
-            signal_type: "Pain point"
-        },
-        {
-            title: "Ask HN: Best way to do SOC 2 compliance as a 3-person startup?",
-            category: "Compliance",
-            summary: "Tiny team needs SOC 2 for enterprise deals. Current tools cost $20k+. Multiple founders asking for a $500/mo alternative.",
-            solution_exists: false,
-            date: "2026-02-05",
-            hn_url: "https://news.ycombinator.com/item?id=example5",
-            signal_type: "Direct request"
-        },
-        {
-            title: "Why is there no good open-source Calendly alternative?",
-            category: "Productivity",
-            summary: "Thread debating why self-hosted scheduling tools all feel half-baked. Several devs expressing willingness to pay for a polished OSS option.",
-            solution_exists: true,
-            date: "2026-01-30",
-            hn_url: "https://news.ycombinator.com/item?id=example6",
-            signal_type: "Market gap"
-        },
-        {
-            title: "Ask HN: How are you handling LLM output evaluation in production?",
-            category: "AI/ML",
-            summary: "ML engineer asking for production-grade LLM eval tools. No clear winner mentioned. Teams building custom solutions from scratch.",
-            solution_exists: false,
-            date: "2026-02-06",
-            hn_url: "https://news.ycombinator.com/item?id=example7",
-            signal_type: "Direct request"
-        }
-    ];
+    // ── Fallback Signal (shown when Supabase is unreachable) ──
+    const FALLBACK_SIGNAL = {
+        title: "Ask HN: Is there a tool that monitors competitor pricing automatically?",
+        source: "Ask HN",
+        date: "2026-02-02",
+        description: "Founder looking for automated competitor price tracking across 50+ sites. Willing to pay $50-100/mo. Multiple replies confirming demand."
+    };
 
-    // ── Map DB Row → Card Format ──
-    function mapSignal(row) {
-        const sourceLabels = { hn_ask: 'Ask HN', hn_show: 'Show HN', producthunt: 'Product Hunt' };
-        const sourceFallbackCategory = { hn_ask: 'HN Discussion', hn_show: 'Show HN', producthunt: 'Product Hunt' };
-
-        return {
-            title: row.title || 'Untitled',
-            category: (row.topics && row.topics[0]) || sourceFallbackCategory[row.source] || 'Signal',
-            summary: row.description ? row.description.slice(0, 200) + (row.description.length > 200 ? '…' : '') : '',
-            solution_exists: row.github_url != null,
-            date: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-            hn_url: row.url || '#',
-            signal_type: sourceLabels[row.source] || row.source || 'Signal'
-        };
-    }
-
-    // ── Fetch Signals from Supabase ──
-    async function fetchSignals() {
+    // ── Fetch Single Preview Signal from Supabase ──
+    async function fetchPreviewSignal() {
         try {
             const { data, error } = await supabase
                 .from('opportunities')
-                .select('title, description, source, url, github_url, topics, created_at')
+                .select('title, description, source, created_at')
                 .order('created_at', { ascending: false })
-                .limit(20);
+                .limit(1)
+                .single();
 
             if (error) throw error;
-            if (!data || data.length === 0) return FALLBACK_SIGNALS;
 
-            return data.map(mapSignal);
+            const sourceLabels = { hn_ask: 'Ask HN', hn_show: 'Show HN', producthunt: 'Product Hunt' };
+
+            return {
+                title: data.title || 'Untitled',
+                source: sourceLabels[data.source] || data.source || 'Signal',
+                date: data.created_at ? data.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+                description: data.description ? data.description.slice(0, 100) + (data.description.length > 100 ? '...' : '') : ''
+            };
         } catch (err) {
-            console.warn('Supabase fetch failed, using fallback data:', err.message);
-            return FALLBACK_SIGNALS;
+            console.warn('Supabase fetch failed, using fallback:', err.message);
+            return FALLBACK_SIGNAL;
         }
     }
 
-    // ── Fetch Counter Data ──
-    async function fetchCounts() {
-        try {
-            const startOfMonth = new Date();
-            startOfMonth.setDate(1);
-            startOfMonth.setHours(0, 0, 0, 0);
-            const monthStart = startOfMonth.toISOString();
-
-            // Total signals this month
-            const { count: totalCount, error: totalErr } = await supabase
-                .from('opportunities')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', monthStart);
-
-            if (totalErr) throw totalErr;
-
-            // Unanswered (no github_url) this month
-            const { count: unansweredCount, error: unansweredErr } = await supabase
-                .from('opportunities')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', monthStart)
-                .is('github_url', null);
-
-            if (unansweredErr) throw unansweredErr;
-
-            return { total: totalCount || 0, unanswered: unansweredCount || 0 };
-        } catch (err) {
-            console.warn('Counter fetch failed, using fallback counts:', err.message);
-            return null;
-        }
-    }
-
-    // ── Render Signal Cards ──
-    function renderSignals(signals) {
+    // ── Render Preview Card ──
+    function renderPreview(signal) {
         const feed = document.getElementById('signal-feed');
         feed.innerHTML = '';
 
-        signals.forEach((signal, i) => {
-            const blurClass = i === 3 ? 'signal-blur-1' : i === 4 ? 'signal-blur-2' : i === 5 ? 'signal-blur-3' : i === 6 ? 'signal-blur-4' : '';
-            const daysAgo = Math.max(1, Math.floor((Date.now() - new Date(signal.date).getTime()) / 86400000));
+        const daysAgo = Math.max(1, Math.floor((Date.now() - new Date(signal.date).getTime()) / 86400000));
 
-            const card = document.createElement('div');
-            card.className = `signal-card border border-border rounded-lg p-5 bg-surface/40 hover:bg-surface/70 transition-colors ${blurClass} fade-up`;
-            card.innerHTML = `
-                <div class="flex flex-wrap items-center gap-3 mb-3">
-                    <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest rounded
-                        ${signal.solution_exists ? 'bg-neutral-800 text-neutral-400' : 'bg-accent/10 text-accent'}">
-                        ${signal.category}
-                    </span>
-                    <span class="text-[10px] font-mono text-muted uppercase tracking-widest">${signal.signal_type}</span>
+        const card = document.createElement('div');
+        card.className = 'signal-card border border-border rounded-lg p-5 bg-surface/40 fade-up';
+        card.innerHTML = `
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+                <span class="px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest rounded bg-accent/10 text-accent">
+                    ${signal.source}
+                </span>
+                <span class="text-[11px] font-mono text-muted">${daysAgo}d ago</span>
+            </div>
+            <h3 class="font-display font-bold text-white mb-3 text-[15px] leading-snug">
+                ${signal.title}
+            </h3>
+            <div class="description-gated rounded-lg p-3">
+                <p class="desc-text text-neutral-500 text-sm leading-relaxed">${signal.description}</p>
+                <div class="desc-overlay">
+                    <span class="text-neutral-300 text-sm font-semibold mb-3">Subscribe to see full signal details</span>
+                    <a href="#subscribe"
+                       class="cta-btn inline-block bg-accent text-bg font-display font-bold text-sm px-5 py-2.5 rounded-lg">
+                        Get Full Access
+                    </a>
                 </div>
-                <a href="${signal.hn_url}" target="_blank" class="block font-display font-bold text-white hover:text-accent transition-colors mb-2 text-[15px] leading-snug">
-                    ${signal.title}
-                </a>
-                <p class="text-neutral-500 text-sm leading-relaxed mb-3">${signal.summary}</p>
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        ${signal.solution_exists
-                            ? '<span class="w-1.5 h-1.5 rounded-full bg-neutral-600"></span><span class="text-[11px] font-mono text-neutral-500">Existing solutions mentioned</span>'
-                            : '<span class="w-1.5 h-1.5 rounded-full bg-accent badge-pulse"></span><span class="text-[11px] font-mono text-accent">No solution mentioned</span>'
-                        }
-                    </div>
-                    <span class="text-[11px] font-mono text-muted">${daysAgo}d ago</span>
-                </div>
-            `;
-            feed.appendChild(card);
-        });
-
-        // Update total signal count in blur overlay
-        const countEl = document.getElementById('total-signal-count');
-        if (countEl) countEl.textContent = signals.length;
+            </div>
+        `;
+        feed.appendChild(card);
     }
 
-    // ── Counter Animation ──
-    function animateCounters() {
-        document.querySelectorAll('.counter-num').forEach(el => {
-            const target = parseInt(el.dataset.target);
-            if (target === 0) { el.textContent = '0'; return; }
-
-            const duration = 1800;
-            const start = performance.now();
-
-            function tick(now) {
-                const elapsed = now - start;
-                const progress = Math.min(elapsed / duration, 1);
-                // Ease out cubic
-                const eased = 1 - Math.pow(1 - progress, 3);
-                el.textContent = Math.floor(eased * target).toLocaleString();
-                if (progress < 1) requestAnimationFrame(tick);
-                else el.textContent = target.toLocaleString();
-            }
-            requestAnimationFrame(tick);
-        });
-    }
-
-    // ── Intersection Observer (fade-up + counter trigger) ──
+    // ── Intersection Observer (fade-up trigger) ──
     function setupObservers() {
-        let countersAnimated = false;
-
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     entry.target.classList.add('visible');
-
-                    // Trigger counter animation when counter bar is visible
-                    if (!countersAnimated && entry.target.querySelector('.counter-num')) {
-                        countersAnimated = true;
-                        animateCounters();
-                    }
                 }
             });
         }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
@@ -698,19 +609,8 @@
 
     // ── Init ──
     document.addEventListener('DOMContentLoaded', async () => {
-        // Fetch real data (falls back to hardcoded on error)
-        const signals = await fetchSignals();
-        renderSignals(signals);
-
-        // Update counter targets from real data
-        const counts = await fetchCounts();
-        if (counts) {
-            const counterEls = document.querySelectorAll('.counter-num');
-            if (counterEls[0]) counterEls[0].dataset.target = counts.total;
-            if (counterEls[1]) counterEls[1].dataset.target = counts.unanswered;
-            // Third counter ("Seen by you") stays at 0
-        }
-
+        const signal = await fetchPreviewSignal();
+        renderPreview(signal);
         setupObservers();
     });
     </script>
