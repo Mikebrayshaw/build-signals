@@ -95,6 +95,44 @@ runs/
 }
 ```
 
+
+## Supabase schema and RLS
+
+The canonical schema for loader + landing preview lives in:
+
+- `supabase/migrations/202602130001_create_opportunities.sql`
+
+### Apply order
+
+1. Apply `202602130001_create_opportunities.sql` first (creates table, constraints, indexes, trigger, and RLS policies).
+2. Apply any future migration files in lexical/timestamp order.
+
+### Environment-specific apply steps
+
+#### Hosted Supabase project (SQL Editor)
+
+1. Open Supabase dashboard → **SQL Editor**.
+2. Paste and run `supabase/migrations/202602130001_create_opportunities.sql`.
+3. Verify table + policies:
+   - `select count(*) from public.opportunities;`
+   - `select policyname, roles, cmd from pg_policies where schemaname='public' and tablename='opportunities';`
+
+#### Supabase CLI / local stack
+
+```bash
+# Start local Supabase stack (first time may take a minute)
+supabase start
+
+# Apply migrations in order
+supabase db push
+```
+
+#### Runtime credentials and expected access
+
+- **Landing page** should use the **anon key** and relies on policy `public read opportunities` (read-only SELECT).
+- **Loader / backend jobs** should use the **service role key** (`SUPABASE_KEY`) and rely on policy `service role write opportunities` for upserts and updates.
+- Never expose the service role key in frontend code or static assets.
+
 ## Workflow
 
 1. **Sunday**: Run `hn_listener` + `github_matcher`
