@@ -21,6 +21,17 @@ python -m scripts.hn_listener --days 7
 python scripts/match_github.py --input runs/latest
 ```
 
+
+## Environment & Secret Management
+
+1. Copy `.env.example` to `.env` for local runs.
+2. Fill placeholder values only in `.env` (never commit real tokens).
+3. Configure repository secrets for GitHub Actions:
+   - `PH_TOKEN`, `GITHUB_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (data refresh workflow)
+   - `LANDING_SUPABASE_URL`, `LANDING_SUPABASE_ANON_KEY` (landing page deploy workflow)
+
+The landing page source (`landing/index.html`) intentionally contains `__SUPABASE_URL__` and `__SUPABASE_ANON_KEY__` placeholders. The deploy workflow replaces those placeholders at build time using GitHub Actions secrets before publishing to Pages.
+
 ## Commands
 
 ### HN Listener
@@ -109,3 +120,8 @@ Create a Personal Access Token at https://github.com/settings/tokens
 - No special scopes needed (public repo search)
 - Classic or fine-grained both work
 - Rate limit: 5000 requests/hour
+
+
+## Preventing Accidental Key Commits
+
+A dedicated `Secret Scan` CI workflow runs [gitleaks](https://github.com/gitleaks/gitleaks-action) on pushes and pull requests. If a key-like value is committed, CI fails so the secret can be removed and rotated before merge.

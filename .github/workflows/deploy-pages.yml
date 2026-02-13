@@ -27,10 +27,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inject landing environment placeholders
+        env:
+          LANDING_SUPABASE_URL: ${{ secrets.LANDING_SUPABASE_URL }}
+          LANDING_SUPABASE_ANON_KEY: ${{ secrets.LANDING_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$LANDING_SUPABASE_URL" ] || [ -z "$LANDING_SUPABASE_ANON_KEY" ]; then
+            echo "Missing required deploy secrets: LANDING_SUPABASE_URL and/or LANDING_SUPABASE_ANON_KEY"
+            exit 1
+          fi
+
+          mkdir -p landing-dist
+          cp -R landing/. landing-dist/
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          index_path = Path("landing-dist/index.html")
+          content = index_path.read_text(encoding="utf-8")
+          content = content.replace("__SUPABASE_URL__", os.environ["LANDING_SUPABASE_URL"])
+          content = content.replace("__SUPABASE_ANON_KEY__", os.environ["LANDING_SUPABASE_ANON_KEY"])
+          index_path.write_text(content, encoding="utf-8")
+          PY
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: landing/
+          path: landing-dist/
 
       - name: Deploy to GitHub Pages
         id: deployment
