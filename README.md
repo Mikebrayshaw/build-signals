@@ -95,6 +95,20 @@ runs/
 }
 ```
 
+
+## Landing Page Runtime Config (GitHub Pages)
+
+The landing page reads Supabase settings from `landing/config.js` via `window.BUILD_SIGNALS_CONFIG`.
+The committed `landing/config.js` only contains placeholders for local/dev safety.
+
+In GitHub, set these secrets on the repository or in the `github-pages` environment:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+
+During `.github/workflows/deploy-pages.yml`, a deploy-time step rewrites `landing/config.js` from secrets before uploading the Pages artifact.
+This keeps real values out of versioned HTML/source while still shipping runtime config to Pages.
+
 ## Workflow
 
 1. **Sunday**: Run `hn_listener` + `github_matcher`

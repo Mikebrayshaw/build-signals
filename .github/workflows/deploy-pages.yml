@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - 'landing/**'
+      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -26,6 +27,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Write runtime config from secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          config = {
+              'supabaseUrl': os.environ['SUPABASE_URL'],
+              'supabaseAnonKey': os.environ['SUPABASE_ANON_KEY'],
+          }
+
+          Path('landing/config.js').write_text(
+              'window.BUILD_SIGNALS_CONFIG = ' + json.dumps(config) + ';\n',
+              encoding='utf-8',
+          )
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

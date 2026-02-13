@@ -16,6 +16,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Supabase JS -->
     <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <!-- Runtime config (injected during deploy) -->
+    <script src="./config.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -522,10 +524,14 @@
     <!-- JAVASCRIPT                                   -->
     <!-- ============================================ -->
     <script>
-    // ── Supabase Client ──
-    const SUPABASE_URL = 'https://njwvtksauogsmberxrbd.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qd3Z0a3NhdW9nc21iZXJ4cmJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTM4NDUsImV4cCI6MjA4NTM2OTg0NX0.JQy2pLJa9cr7YWZLTQg28nyDBcreYAv9OqWTgPptec8';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ── Supabase Client (runtime-injected config) ──
+    const runtimeConfig = window.BUILD_SIGNALS_CONFIG || {};
+    const SUPABASE_URL = runtimeConfig.supabaseUrl;
+    const SUPABASE_ANON_KEY = runtimeConfig.supabaseAnonKey;
+    const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+    const supabase = hasSupabaseConfig
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        : null;
 
     // ── Fallback Signal (shown when Supabase is unreachable) ──
     const FALLBACK_SIGNAL = {
@@ -537,6 +543,11 @@
 
     // ── Fetch Single Preview Signal from Supabase ──
     async function fetchPreviewSignal() {
+        if (!supabase) {
+            console.warn('Supabase config missing, using fallback signal.');
+            return FALLBACK_SIGNAL;
+        }
+
         try {
             const { data, error } = await supabase
                 .from('opportunities')
