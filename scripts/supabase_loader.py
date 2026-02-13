@@ -62,14 +62,16 @@ def normalize_record(record: dict) -> dict:
     # Create composite ID
     composite_id = f"{source}:{source_id}"
 
-    github_repos = record.get("github_repos")
-    if github_repos is None:
-        # Backward compatibility for older matched payloads.
-        github_repos = record.get("github")
-
+    # Support both legacy GitHub enrichment fields (`github`, `github_url`)
+    # and matcher output (`github_repos`).
+    github_data = record.get("github")
     github_url = record.get("github_url")
-    if not github_url and isinstance(github_repos, list) and github_repos:
-        github_url = github_repos[0].get("url")
+    if github_data is None and record.get("github_repos"):
+        github_data = record.get("github_repos")
+    if not github_url and isinstance(github_data, list) and github_data:
+        first_repo = github_data[0]
+        if isinstance(first_repo, dict):
+            github_url = first_repo.get("url")
 
     # Normalize fields based on source
     if source in ("hn_ask", "hn_show"):
@@ -85,7 +87,7 @@ def normalize_record(record: dict) -> dict:
             "score": record.get("score", 0),
             "comments": record.get("descendants", 0),  # HN uses 'descendants'
             "github_url": github_url,
-            "github_data": github_repos,
+            "github_data": github_data,
             "topics": None,
             "created_at": record.get("created_iso"),
         }
@@ -111,7 +113,7 @@ def normalize_record(record: dict) -> dict:
             "score": record.get("votes", 0),
             "comments": record.get("comments", 0),
             "github_url": github_url,
-            "github_data": github_repos,
+            "github_data": github_data,
             "topics": record.get("topics"),
             "created_at": record.get("created_iso"),
         }
@@ -129,7 +131,7 @@ def normalize_record(record: dict) -> dict:
             "score": record.get("score", 0),
             "comments": record.get("comments", 0),
             "github_url": github_url,
-            "github_data": github_repos,
+            "github_data": github_data,
             "topics": record.get("topics"),
             "created_at": record.get("created_iso"),
         }

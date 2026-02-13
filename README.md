@@ -18,8 +18,19 @@ cp .env.example .env
 python -m scripts.hn_listener --days 7
 
 # Step 2: Match to GitHub repos
-python -m scripts.github_matcher --input runs/latest
+python scripts/match_github.py --input runs/latest
 ```
+
+
+## Environment & Secret Management
+
+1. Copy `.env.example` to `.env` for local runs.
+2. Fill placeholder values only in `.env` (never commit real tokens).
+3. Configure repository secrets for GitHub Actions:
+   - `PH_TOKEN`, `GITHUB_TOKEN`, `SUPABASE_URL`, `SUPABASE_KEY` (data refresh workflow)
+   - `LANDING_SUPABASE_URL`, `LANDING_SUPABASE_ANON_KEY` (landing page deploy workflow)
+
+The landing page source (`landing/index.html`) intentionally contains `__SUPABASE_URL__` and `__SUPABASE_ANON_KEY__` placeholders. The deploy workflow replaces those placeholders at build time using GitHub Actions secrets before publishing to Pages.
 
 ## Commands
 
@@ -43,16 +54,16 @@ python -m scripts.hn_listener --type show
 
 ```bash
 # Match all files in a run directory
-python -m scripts.github_matcher --input runs/20250130_120000
+python scripts/match_github.py --input runs/20250130_120000
 
 # Use the latest run
-python -m scripts.github_matcher --input $(cat runs/latest)
+python scripts/match_github.py --input $(cat runs/latest)
 
 # Only high-scoring posts (50+ upvotes)
-python -m scripts.github_matcher --input runs/latest --min-score 50
+python scripts/match_github.py --input runs/latest --min-score 50
 
 # More repos per post
-python -m scripts.github_matcher --input runs/latest --repos-per-post 10
+python scripts/match_github.py --input runs/latest --repos-per-post 10
 ```
 
 ## Output
@@ -95,16 +106,47 @@ runs/
 }
 ```
 
-Canonical GitHub match schema:
-- Ingestion outputs (`*_matched.jsonl`) always store matched repos in `github_repos`.
-- `scripts/supabase_loader.py` normalizes `github_repos` into Supabase fields:
-  - `opportunities.github_data` (full repo array)
-  - `opportunities.github_url` (first repo URL)
-- Frontend reads `github_data` from Supabase.
+
+## Supabase schema and RLS
+
+The canonical schema for loader + landing preview lives in:
+
+- `supabase/migrations/202602130001_create_opportunities.sql`
+
+### Apply order
+
+1. Apply `202602130001_create_opportunities.sql` first (creates table, constraints, indexes, trigger, and RLS policies).
+2. Apply any future migration files in lexical/timestamp order.
+
+### Environment-specific apply steps
+
+#### Hosted Supabase project (SQL Editor)
+
+1. Open Supabase dashboard → **SQL Editor**.
+2. Paste and run `supabase/migrations/202602130001_create_opportunities.sql`.
+3. Verify table + policies:
+   - `select count(*) from public.opportunities;`
+   - `select policyname, roles, cmd from pg_policies where schemaname='public' and tablename='opportunities';`
+
+#### Supabase CLI / local stack
+
+```bash
+# Start local Supabase stack (first time may take a minute)
+supabase start
+
+# Apply migrations in order
+supabase db push
+```
+
+#### Runtime credentials and expected access
+
+- **Landing page** should use the **anon key** and relies on policy `public read opportunities` (read-only SELECT).
+- **Loader / backend jobs** should use the **service role key** (`SUPABASE_KEY`) and rely on policy `service role write opportunities` for upserts and updates.
+- Never expose the service role key in frontend code or static assets.
 
 ## Workflow
 
-1. **Sunday**: Run `hn_listener` + `github_matcher`
+1. **Sunday**: Run `hn_listener` + `match_github.py`
 2. **Monday**: Review `*_matched.jsonl` files, pick top 5 opportunities
 3. **Tuesday**: Write newsletter
 4. **Wednesday**: Send via ConvertKit
@@ -116,3 +158,8 @@ Create a Personal Access Token at https://github.com/settings/tokens
 - No special scopes needed (public repo search)
 - Classic or fine-grained both work
 - Rate limit: 5000 requests/hour
+
+
+## Preventing Accidental Key Commits
+
+A dedicated `Secret Scan` CI workflow runs [gitleaks](https://github.com/gitleaks/gitleaks-action) on pushes and pull requests. If a key-like value is committed, CI fails so the secret can be removed and rotated before merge.

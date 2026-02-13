@@ -11,7 +11,7 @@ Format: date, task summary, what worked, what did not, what to do differently.
 
 **What was done:**
 - Created `scripts/ph_listener.py` using PH GraphQL API v2
-- Updated `github_matcher.py` to process producthunt.jsonl files
+- Updated `match_github.py` to process producthunt.jsonl files
 - Updated `supabase_loader.py` with `source_id` field for multi-source deduplication
 - Updated GitHub Actions workflow with optional PH fetch step
 - Created SQL migration for new columns (source_id, tagline, topics)
