@@ -524,11 +524,12 @@
     <!-- JAVASCRIPT                                   -->
     <!-- ============================================ -->
     <script>
-    // ── Supabase Client (runtime-injected config) ──
-    const runtimeConfig = window.BUILD_SIGNALS_CONFIG || {};
-    const SUPABASE_URL = runtimeConfig.supabaseUrl;
-    const SUPABASE_ANON_KEY = runtimeConfig.supabaseAnonKey;
-    const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+    // ── Supabase Client ──
+    const SUPABASE_URL = '__SUPABASE_URL__';
+    const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
+    const hasSupabaseConfig =
+        SUPABASE_URL !== '__SUPABASE_URL__' &&
+        SUPABASE_ANON_KEY !== '__SUPABASE_ANON_KEY__';
     const supabase = hasSupabaseConfig
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
         : null;
@@ -544,7 +545,7 @@
     // ── Fetch Single Preview Signal from Supabase ──
     async function fetchPreviewSignal() {
         if (!supabase) {
-            console.warn('Supabase config missing, using fallback signal.');
+            console.warn('Supabase placeholders were not replaced. Using fallback preview signal.');
             return FALLBACK_SIGNAL;
         }
 

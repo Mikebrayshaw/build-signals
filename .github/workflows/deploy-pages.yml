@@ -28,31 +28,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Write runtime config from secrets
+      - name: Inject landing environment placeholders
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          LANDING_SUPABASE_URL: ${{ secrets.LANDING_SUPABASE_URL }}
+          LANDING_SUPABASE_ANON_KEY: ${{ secrets.LANDING_SUPABASE_ANON_KEY }}
         run: |
+          if [ -z "$LANDING_SUPABASE_URL" ] || [ -z "$LANDING_SUPABASE_ANON_KEY" ]; then
+            echo "Missing required deploy secrets: LANDING_SUPABASE_URL and/or LANDING_SUPABASE_ANON_KEY"
+            exit 1
+          fi
+
+          mkdir -p landing-dist
+          cp -R landing/. landing-dist/
+
           python - <<'PY'
-          import json
           import os
           from pathlib import Path
 
-          config = {
-              'supabaseUrl': os.environ['SUPABASE_URL'],
-              'supabaseAnonKey': os.environ['SUPABASE_ANON_KEY'],
-          }
-
-          Path('landing/config.js').write_text(
-              'window.BUILD_SIGNALS_CONFIG = ' + json.dumps(config) + ';\n',
-              encoding='utf-8',
-          )
+          index_path = Path("landing-dist/index.html")
+          content = index_path.read_text(encoding="utf-8")
+          content = content.replace("__SUPABASE_URL__", os.environ["LANDING_SUPABASE_URL"])
+          content = content.replace("__SUPABASE_ANON_KEY__", os.environ["LANDING_SUPABASE_ANON_KEY"])
+          index_path.write_text(content, encoding="utf-8")
           PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: landing/
+          path: landing-dist/
 
       - name: Deploy to GitHub Pages
         id: deployment
