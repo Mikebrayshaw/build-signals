@@ -62,6 +62,15 @@ def normalize_record(record: dict) -> dict:
     # Create composite ID
     composite_id = f"{source}:{source_id}"
 
+    github_repos = record.get("github_repos")
+    if github_repos is None:
+        # Backward compatibility for older matched payloads.
+        github_repos = record.get("github")
+
+    github_url = record.get("github_url")
+    if not github_url and isinstance(github_repos, list) and github_repos:
+        github_url = github_repos[0].get("url")
+
     # Normalize fields based on source
     if source in ("hn_ask", "hn_show"):
         return {
@@ -75,8 +84,8 @@ def normalize_record(record: dict) -> dict:
             "author": record.get("author"),
             "score": record.get("score", 0),
             "comments": record.get("descendants", 0),  # HN uses 'descendants'
-            "github_url": record.get("github_url"),
-            "github_data": record.get("github"),
+            "github_url": github_url,
+            "github_data": github_repos,
             "topics": None,
             "created_at": record.get("created_iso"),
         }
@@ -101,8 +110,8 @@ def normalize_record(record: dict) -> dict:
             "author": author,
             "score": record.get("votes", 0),
             "comments": record.get("comments", 0),
-            "github_url": record.get("github_url"),
-            "github_data": record.get("github"),
+            "github_url": github_url,
+            "github_data": github_repos,
             "topics": record.get("topics"),
             "created_at": record.get("created_iso"),
         }
@@ -119,8 +128,8 @@ def normalize_record(record: dict) -> dict:
             "author": record.get("author"),
             "score": record.get("score", 0),
             "comments": record.get("comments", 0),
-            "github_url": record.get("github_url"),
-            "github_data": record.get("github"),
+            "github_url": github_url,
+            "github_data": github_repos,
             "topics": record.get("topics"),
             "created_at": record.get("created_iso"),
         }

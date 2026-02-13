@@ -95,6 +95,13 @@ runs/
 }
 ```
 
+Canonical GitHub match schema:
+- Ingestion outputs (`*_matched.jsonl`) always store matched repos in `github_repos`.
+- `scripts/supabase_loader.py` normalizes `github_repos` into Supabase fields:
+  - `opportunities.github_data` (full repo array)
+  - `opportunities.github_url` (first repo URL)
+- Frontend reads `github_data` from Supabase.
+
 ## Workflow
 
 1. **Sunday**: Run `hn_listener` + `github_matcher`
