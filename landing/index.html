@@ -539,8 +539,16 @@
         title: "Ask HN: Is there a tool that monitors competitor pricing automatically?",
         source: "Ask HN",
         date: "2026-02-02",
-        description: "Founder looking for automated competitor price tracking across 50+ sites. Willing to pay $50-100/mo. Multiple replies confirming demand."
+        description: "Founder looking for automated competitor price tracking across 50+ sites. Willing to pay $50-100/mo. Multiple replies confirming demand.",
+        githubRepos: []
     };
+
+    function normalizeGithubRepos(opportunity) {
+        if (Array.isArray(opportunity.github_data)) return opportunity.github_data;
+        if (Array.isArray(opportunity.github_repos)) return opportunity.github_repos;
+        if (Array.isArray(opportunity.github)) return opportunity.github;
+        return [];
+    }
 
     // ── Fetch Single Preview Signal from Supabase ──
     async function fetchPreviewSignal() {
@@ -552,7 +560,7 @@
         try {
             const { data, error } = await supabase
                 .from('opportunities')
-                .select('title, description, source, created_at')
+                .select('title, description, source, created_at, github_data')
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .single();
@@ -565,7 +573,8 @@
                 title: data.title || 'Untitled',
                 source: sourceLabels[data.source] || data.source || 'Signal',
                 date: data.created_at ? data.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-                description: data.description ? data.description.slice(0, 100) + (data.description.length > 100 ? '...' : '') : ''
+                description: data.description ? data.description.slice(0, 100) + (data.description.length > 100 ? '...' : '') : '',
+                githubRepos: normalizeGithubRepos(data)
             };
         } catch (err) {
             console.warn('Supabase fetch failed, using fallback:', err.message);
