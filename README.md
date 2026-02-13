@@ -18,7 +18,7 @@ cp .env.example .env
 python -m scripts.hn_listener --days 7
 
 # Step 2: Match to GitHub repos
-python -m scripts.github_matcher --input runs/latest
+python scripts/match_github.py --input runs/latest
 ```
 
 ## Commands
@@ -43,16 +43,16 @@ python -m scripts.hn_listener --type show
 
 ```bash
 # Match all files in a run directory
-python -m scripts.github_matcher --input runs/20250130_120000
+python scripts/match_github.py --input runs/20250130_120000
 
 # Use the latest run
-python -m scripts.github_matcher --input $(cat runs/latest)
+python scripts/match_github.py --input $(cat runs/latest)
 
 # Only high-scoring posts (50+ upvotes)
-python -m scripts.github_matcher --input runs/latest --min-score 50
+python scripts/match_github.py --input runs/latest --min-score 50
 
 # More repos per post
-python -m scripts.github_matcher --input runs/latest --repos-per-post 10
+python scripts/match_github.py --input runs/latest --repos-per-post 10
 ```
 
 ## Output
@@ -97,7 +97,7 @@ runs/
 
 ## Workflow
 
-1. **Sunday**: Run `hn_listener` + `github_matcher`
+1. **Sunday**: Run `hn_listener` + `match_github.py`
 2. **Monday**: Review `*_matched.jsonl` files, pick top 5 opportunities
 3. **Tuesday**: Write newsletter
 4. **Wednesday**: Send via ConvertKit
