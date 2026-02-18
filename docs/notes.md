@@ -51,3 +51,25 @@ Format: date, task summary, what worked, what did not, what to do differently.
 - DNS records (CNAME + A records) are manual steps
 - Credential rotation (Step 5) is entirely manual
 
+## 2026-02-09: Fixed Supabase loader pipeline end-to-end
+
+**Task:** Get supabase_loader.py working to load JSONL data into Supabase.
+
+**What was done:**
+- Fixed httpx version mismatch (0.25.2 → 0.27.2) — gotrue 2.9.1 passes `proxy` kwarg that requires httpx >=0.27
+- Created migration 003 to align table schema with loader expectations: renamed `text`→`description`, `github_repos`→`github_data`, converted `id` from serial int to text composite PK (`source:hn_id`), added `source_id`, `github_url`, `tagline`, `topics` columns
+- Fixed supabase_loader.py to load env from `app/.env.local` instead of CWD
+- Fixed supabase_loader.py to fall back to `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env var names
+- Added deduplication in loader — posts appearing in both base and matched JSONL files caused Postgres ON CONFLICT errors within same batch
+- Successfully loaded 165 unique records (204 raw, 39 dupes across files)
+
+**What went wrong:**
+- Tried full `pip install --upgrade supabase` first — failed because new `storage3` pulls in `pyiceberg` → `pyroaring` which needs MSVC C++ build tools
+- Migration 001 was never applied to production — had to combine it into migration 003
+- `runs/latest` is a plain text file, not a symlink or directory — caused confusion when passing it as `--input-dir`
+
+**Lessons:**
+- Always check actual table schema before writing a loader (query a row, don't trust comments)
+- When upgrading Python packages on Windows, check for C extension dependencies before upgrading the whole tree
+- Deduplicate records before batch upsert — Postgres ON CONFLICT can't handle the same row twice in one batch
+

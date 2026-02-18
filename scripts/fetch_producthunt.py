@@ -36,10 +36,9 @@ def fetch_posts(
     # Calculate date filter
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
 
-    # GraphQL query to get posts with engagement
     query = """
-    query GetPosts($first: Int!, $postedAfter: DateTime) {
-        posts(first: $first, postedAfter: $postedAfter, order: VOTES) {
+    query GetPosts($first: Int!, $postedAfter: DateTime, $after: String) {
+        posts(first: $first, postedAfter: $postedAfter, after: $after, order: VOTES) {
             edges {
                 node {
                     id
@@ -67,6 +66,11 @@ def fetch_posts(
                         username
                     }
                 }
+                cursor
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
             }
         }
     }
@@ -78,65 +82,78 @@ def fetch_posts(
         "Accept": "application/json",
     }
 
-    variables = {
-        "first": min(limit, 100),  # API max is usually 100 per request
-        "postedAfter": cutoff_date,
-    }
+    page_size = 20  # PH API complexity limit ~500k, 20 posts with nested fields stays under
+    posts = []
+    cursor = None
 
     try:
-        resp = requests.post(
-            PH_API_URL,
-            headers=headers,
-            json={"query": query, "variables": variables},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        while len(posts) < limit:
+            variables = {
+                "first": min(page_size, limit - len(posts)),
+                "postedAfter": cutoff_date,
+            }
+            if cursor:
+                variables["after"] = cursor
 
-        if "errors" in data:
-            print(f"  GraphQL errors: {data['errors']}")
-            return []
+            resp = requests.post(
+                PH_API_URL,
+                headers=headers,
+                json={"query": query, "variables": variables},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-        posts = []
-        edges = data.get("data", {}).get("posts", {}).get("edges", [])
+            if "errors" in data:
+                print(f"  GraphQL errors: {data['errors']}")
+                break
 
-        for edge in edges:
-            node = edge["node"]
-            votes = node.get("votesCount", 0)
+            post_data = data.get("data", {}).get("posts", {})
+            edges = post_data.get("edges", [])
 
-            # Filter by minimum votes
-            if votes < min_votes:
-                continue
+            if not edges:
+                break
 
-            # Extract topics
-            topics = [
-                t["node"]["name"]
-                for t in node.get("topics", {}).get("edges", [])
-            ]
+            for edge in edges:
+                node = edge["node"]
+                votes = node.get("votesCount", 0)
 
-            # Extract makers
-            makers = [
-                {"name": m.get("name"), "username": m.get("username")}
-                for m in node.get("makers", [])
-            ]
+                if votes < min_votes:
+                    continue
 
-            posts.append({
-                "source": "producthunt",
-                "id": node.get("id"),
-                "name": node.get("name", ""),
-                "title": f"{node.get('name', '')} - {node.get('tagline', '')}",
-                "tagline": node.get("tagline", ""),
-                "description": node.get("description", ""),
-                "url": f"https://www.producthunt.com/posts/{node.get('slug', '')}",
-                "external_url": node.get("website"),
-                "score": votes,
-                "votes": votes,
-                "comments": node.get("commentsCount", 0),
-                "topics": topics,
-                "makers": makers,
-                "created_iso": node.get("createdAt"),
-                "featured_at": node.get("featuredAt"),
-            })
+                topics = [
+                    t["node"]["name"]
+                    for t in node.get("topics", {}).get("edges", [])
+                ]
+
+                makers = [
+                    {"name": m.get("name"), "username": m.get("username")}
+                    for m in node.get("makers", [])
+                ]
+
+                posts.append({
+                    "source": "producthunt",
+                    "id": node.get("id"),
+                    "name": node.get("name", ""),
+                    "title": f"{node.get('name', '')} - {node.get('tagline', '')}",
+                    "tagline": node.get("tagline", ""),
+                    "description": node.get("description", ""),
+                    "url": f"https://www.producthunt.com/posts/{node.get('slug', '')}",
+                    "external_url": node.get("website"),
+                    "score": votes,
+                    "votes": votes,
+                    "comments": node.get("commentsCount", 0),
+                    "topics": topics,
+                    "makers": makers,
+                    "created_iso": node.get("createdAt"),
+                    "featured_at": node.get("featuredAt"),
+                })
+
+            page_info = post_data.get("pageInfo", {})
+            if not page_info.get("hasNextPage"):
+                break
+            cursor = page_info.get("endCursor")
+            print(f"  Fetched page, {len(posts)} posts so far...")
 
         return posts
 
@@ -146,10 +163,10 @@ def fetch_posts(
             print("  Get a new token at: https://www.producthunt.com/v2/oauth/applications")
         else:
             print(f"  ERROR: HTTP {e.response.status_code}: {e}")
-        return []
+        return posts  # return what we have so far
     except Exception as e:
         print(f"  ERROR fetching PH posts: {e}")
-        return []
+        return posts
 
 
 def main():
@@ -223,9 +240,9 @@ def main():
             f.write(json.dumps(p, ensure_ascii=False) + "\n")
     print(f"  Wrote {len(posts)} to {ph_path}")
 
-    # Update latest marker
+    # Update latest pointer file
     latest_marker = Path("runs") / "latest"
-    latest_marker.write_text(str(out_dir))
+    latest_marker.write_text(out_dir.as_posix())
 
     print()
     print("=" * 60)

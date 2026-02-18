@@ -207,9 +207,9 @@ def main():
     print(f"Output directory: {out_dir}")
     print("=" * 60)
     
-    # Write a latest symlink/marker
+    # Write a latest pointer file
     latest_marker = Path("runs") / "latest"
-    latest_marker.write_text(str(out_dir))
+    latest_marker.write_text(out_dir.as_posix())
 
 
 if __name__ == "__main__":

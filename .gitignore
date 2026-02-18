@@ -14,3 +14,9 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
+
+# Next.js app
+app/node_modules/
+app/.next/
+app/.env.local
+app/.env*.local
