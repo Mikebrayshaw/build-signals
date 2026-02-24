@@ -106,6 +106,18 @@ jobs:
             --out-dir runs/${{ steps.run_id.outputs.run_id }} \
             --top-n 5
 
+      - name: Validate top opportunities
+        if: ${{ github.event.inputs.skip_scoring != 'true' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PH_TOKEN: ${{ secrets.PH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/validate_opportunities.py \
+            --input-dir runs/${{ steps.run_id.outputs.run_id }} \
+            --out-dir runs/${{ steps.run_id.outputs.run_id }} \
+            --top-n 15
+
       - name: Load to Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

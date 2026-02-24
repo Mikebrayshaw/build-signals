@@ -212,6 +212,33 @@ def normalize_google_trend(record: dict) -> dict:
     }
 
 
+def normalize_validated_opportunity(record: dict) -> dict:
+    """Normalize validated opportunity for validated_opportunities table."""
+    return {
+        "id": record.get("id", ""),
+        "signal_id": record.get("signal_id", ""),
+        "signal_title": record.get("signal_title", ""),
+        "signal_url": record.get("signal_url"),
+        "signal_source": record.get("signal_source", ""),
+        "signal_score": record.get("signal_score", 0),
+        "signal_comments": record.get("signal_comments", 0),
+        "relevance_score": record.get("relevance_score"),
+        "content_potential": record.get("content_potential"),
+        "opportunity_type": record.get("opportunity_type", "unknown"),
+        "queries": json.dumps(record.get("queries", {})) if isinstance(record.get("queries"), dict) else record.get("queries", "{}"),
+        "evidence_google_trends": json.dumps(record.get("evidence_google_trends", {})) if isinstance(record.get("evidence_google_trends"), dict) else record.get("evidence_google_trends", "{}"),
+        "evidence_producthunt": json.dumps(record.get("evidence_producthunt", {})) if isinstance(record.get("evidence_producthunt"), dict) else record.get("evidence_producthunt", "{}"),
+        "evidence_github": json.dumps(record.get("evidence_github", {})) if isinstance(record.get("evidence_github"), dict) else record.get("evidence_github", "{}"),
+        "sources_confirming": record.get("sources_confirming", 0),
+        "confidence": record.get("confidence", "low"),
+        "narrative": record.get("narrative"),
+        "one_line_hook": record.get("one_line_hook"),
+        "key_insight": record.get("key_insight"),
+        "validated_at": record.get("validated_at", datetime.now(timezone.utc).isoformat()),
+        "model_used": record.get("model_used"),
+    }
+
+
 def normalize_record(record: dict) -> dict:
     """Legacy normalize for raw source files (backward compat)."""
     source = record.get("source", "unknown")
@@ -377,6 +404,11 @@ def main():
     if "google_trends.jsonl" in jsonl_files:
         trend_files.append(("google_trends.jsonl", normalize_google_trend))
 
+    # Group 4: Validated opportunities (needs signal_id FK)
+    validated_files = []
+    if "validated_opportunities.jsonl" in jsonl_files:
+        validated_files.append(("validated_opportunities.jsonl", normalize_validated_opportunity))
+
     if args.dry_run:
         print("DRY RUN - showing what would be loaded:\n")
 
@@ -399,6 +431,14 @@ def main():
         for fname, norm_fn in trend_files:
             records = load_jsonl_file(jsonl_files[fname])
             print(f"[google_trends] {fname}: {len(records)} records")
+            if records:
+                sample = norm_fn(records[0])
+                print(f"  Sample: {json.dumps(sample, indent=2, default=str)[:500]}")
+            print()
+
+        for fname, norm_fn in validated_files:
+            records = load_jsonl_file(jsonl_files[fname])
+            print(f"[validated_opportunities] {fname}: {len(records)} records")
             if records:
                 sample = norm_fn(records[0])
                 print(f"  Sample: {json.dumps(sample, indent=2, default=str)[:500]}")
@@ -464,6 +504,16 @@ def main():
             records = load_jsonl_file(jsonl_files[fname])
             print(f"  {fname}: {len(records)} records")
             count = upsert_records(client, records, "google_trends", norm_fn)
+            total_upserted += count
+        print()
+
+    # Load validated opportunities (after opportunities due to FK)
+    if validated_files:
+        print("[4] Loading to validated_opportunities table...")
+        for fname, norm_fn in validated_files:
+            records = load_jsonl_file(jsonl_files[fname])
+            print(f"  {fname}: {len(records)} records")
+            count = upsert_records(client, records, "validated_opportunities", norm_fn)
             total_upserted += count
         print()
 

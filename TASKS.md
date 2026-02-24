@@ -1,62 +1,109 @@
-# TASKS.md — Build Signals
+﻿# TASKS.md — Build Signals
 
-> Last updated: 2026-02-19, end of session 9
+> Last updated: 2026-02-23, session 12 in progress
 
-## Status: FULLY OPERATIONAL
+## Status: OPPORTUNITY INTELLIGENCE LAYER — VALIDATION STILL BLOCKED, UI RUNS BUT EMOJI MOJIBAKE
 
-The entire pipeline works end-to-end. Data flows from sources → Claude scoring → Supabase → Railway dashboard.
+The original pipeline is operational. The Intelligence Layer has been updated to the new spec (opportunity types, buyer-intent queries, evidence summaries, deterministic confidence). Local validation was attempted but Anthropic API calls are blocked by outbound network policy.
 
 ---
 
-## DONE (Session 9)
+## Session 12 — Verification Attempts + Local UI Run (2026-02-22/23)
 
-- [x] Railway deploy verified — all 3 tabs show live data
-- [x] Anthropic API credits topped up ($20) and working
-- [x] Full pipeline ran locally: HN (213) + GitHub (21) + PH (100) → scored (77/334) → tweets (5) → Supabase (339 records)
-- [x] Dashboard shows Tweet Drafts, Signals, Trends — all populated
-- [x] `SUPABASE_KEY` GitHub secret updated to service role key (was anon key, caused RLS 42501 errors)
+### DONE
+- [x] Ran validator on `runs\local_001` (top-n 1 and top-n 15) — completed but all LLM calls failed with `Connection error`
+- [x] Installed `build-signals-ui` dependencies (Streamlit available locally)
+- [x] Created `C:\Users\mike\build-signals-ui\.streamlit\secrets.toml` with PASSWORD + SUPABASE keys
+- [x] Streamlit app opens locally (user confirmed)
 
-## TODO — Next Session (Session 10)
+### HALF-FINISHED / NOT YET VERIFIED
+- [ ] **Fix outbound HTTPS for Anthropic** (still blocking LLM classify/summarize)
+- [ ] **Set `GITHUB_TOKEN` and `PH_TOKEN` locally** for full evidence (GitHub skipped; PH fallback used)
+- [ ] **Re-run live validator** (top-n 1, then top-n 15) once network is allowed
+- [ ] **Supabase loader** with validated_opportunities output
+- [ ] **Streamlit UI smoke test** for unified cards and evidence summaries (with real data)
+- [ ] **Fix emoji mojibake in `build-signals-ui/app.py`**
+  - Partial fix inserted broken `EMOJI_*` constants as escaped strings
+  - Page icon and several UI strings still garbled
+  - Clean up to real Unicode escapes or ASCII
+- [ ] **Smoke test requirement**: "elderly people struggling with modern web" card must read well
+
+### Files Changed (NOT YET COMMITTED)
+- MODIFIED: `C:\Users\mike\build-signals-ui\app.py` (emoji fix attempt inserted broken `EMOJI_*` constants)
+- ADDED: `C:\Users\mike\build-signals-ui\.streamlit\secrets.toml` (local secrets; do not commit)
+
+---
+
+## Session 11 — Intelligence Layer Spec Alignment (2026-02-20)
+
+### DONE
+- [x] Updated `scripts/validate_opportunities.py` to:
+  - Use spec opportunity types (1–2 types per signal)
+  - Generate 3–5 buyer-intent queries per source
+  - Compute evidence summaries + deterministic confidence (HN strength + Trends/PH/GitHub)
+  - Generate an opportunity title (not HN title)
+  - Synthesize narrative from evidence summaries with fallback narrative
+- [x] Updated `build-signals-ui/app.py` to:
+  - Single unified Opportunity view (no tabs)
+  - Render type badges, evidence summaries, and confidence
+  - Show 5/10/20 cards per view
+- [x] Installed Python 3.12 locally and installed `build-signals/requirements.txt`
+
+### HALF-FINISHED / NOT YET VERIFIED
+- [x] **Live validator run attempted** (top-n 1) on `runs\local_001` — FAILED due to Anthropic connection error (re-tested 2026-02-21)
+- [ ] **Fix outbound network access to HTTPS** (TCP blocked to `api.anthropic.com:443` and `google.com:443`; ping OK)
+- [ ] **Set `GITHUB_TOKEN` and `PH_TOKEN` locally** for full evidence (GitHub skipped; PH local fallback used)
+- [ ] **Re-run live validator** (top-n 1, then top-n 15) once network is allowed
+- [ ] **Supabase loader** with validated_opportunities output
+- [ ] **Streamlit UI smoke test** for unified cards and evidence summaries
+- [ ] **Smoke test requirement**: "elderly people struggling with modern web" card must read well
+
+### NEXT STEPS (RESUME HERE)
+1. Fix emoji mojibake in `C:\Users\mike\build-signals-ui\app.py` (remove broken `EMOJI_*` block, replace garbled chars).
+2. Allow outbound HTTPS to `api.anthropic.com:443` (or configure proxy) and re-test connectivity (also fails to `google.com:443`).
+3. Re-run validator (live):
+   - `python scripts\validate_opportunities.py --input-dir runs\local_001 --top-n 1`
+   - `python scripts\validate_opportunities.py --input-dir runs\local_001 --top-n 15`
+4. Load to Supabase:
+   - `python scripts\supabase_loader.py --input-dir runs\local_001`
+5. Run Streamlit:
+   - `python -m streamlit run C:\Users\mike\build-signals-ui\app.py`
+6. Evaluate the "elderly web" opportunity card for narrative + evidence quality.
+
+### Files Changed (NOT YET COMMITTED)
+
+**build-signals/**
+- MODIFIED: `scripts/validate_opportunities.py` (spec alignment, confidence, summaries, titles)
+
+**build-signals-ui/**
+- MODIFIED: `app.py` (single unified opportunity view)
+
+---
+
+## From Session 10 — Still Open
 
 ### High Priority
-- [ ] **Verify CI end-to-end**: Trigger `refresh-data.yml` from GitHub Actions UI WITHOUT `skip_scoring`. Confirm scoring + tweets + Supabase load all pass in CI (local run is proven, CI not yet tested with scoring enabled)
-- [ ] **Review daily cron output**: Workflow runs daily at 6 AM UTC. After first automated run, check Actions tab for success/failure
+- [ ] **Verify CI end-to-end**: Trigger `refresh-data.yml` WITHOUT `skip_scoring` (now includes validation step)
 
 ### Medium Priority
-- [ ] **Update `anthropic` pin**: `requirements.txt` pins `anthropic==0.43.0` but `0.81.0` is installed locally and works. Update to `anthropic>=0.43.0` or pin to current version to avoid CI issues
-- [ ] **Fix Windows-only bugs** (non-blocking, only affect local dev):
-  - `hn_listener.py` line 212: `runs/latest` symlink fails on Windows (data files write fine)
-  - `generate_tweets.py` line 300: unicode `→` crashes cp1252 console on Windows (JSONL file writes fine)
+- [ ] **Update `anthropic` pin**: `requirements.txt` pins `anthropic==0.43.0` but `0.81.0` works locally
 
 ### Low Priority
-- [ ] **signal-source-code frontend**: Vite/TS app not yet connected or worked on. Decide if this replaces Streamlit dashboard or serves a different purpose
-- [ ] **STRIPE_WEBHOOK_SECRET**: Still a placeholder in `app/.env.local`
-- [ ] **Clean up Codex branches**: ~18 remote Codex branches on build-signals-ui can be deleted
+- [ ] **signal-source-code frontend**: Vite/TS app not connected
+- [ ] **STRIPE_WEBHOOK_SECRET**: Still placeholder
+- [ ] **Clean up Codex branches**: ~18 remote branches on build-signals-ui
+- [ ] **Windows-only bugs**: symlink + unicode console issues (non-blocking)
 
-## BLOCKED — Nothing Currently Blocked
+---
 
 ## Key Info for Next Session
 
 ### Credentials
-- **ANTHROPIC_API_KEY**: Must be `export`ed in shell (not in .env file). Key starts with `sk-ant-api03-cbbt...`
+- **ANTHROPIC_API_KEY**: Stored in `C:\Users\mike\build-signals\.env` (do not commit). API calls blocked by outbound policy.
 - **Supabase service role key**: In `app/.env.local` and GitHub Secrets (`SUPABASE_KEY`)
 - **Dashboard password**: `buildsignals123`
 - **Railway URL**: https://build-signals-ui-production.up.railway.app
 
-### How to Run Pipeline Locally
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-mkdir -p runs/local_002
-python scripts/hn_listener.py --days 7 --limit 200 --out-dir runs/local_002
-python scripts/fetch_github_trending.py --since both --out-dir runs/local_002
-export PH_TOKEN="lwLNC52ziX7GhgQu5siiVxWkCCaWGMlcDwVSyTwQZyQ"
-python scripts/fetch_producthunt.py --days 7 --limit 100 --min-votes 50 --out-dir runs/local_002
-python scripts/score_signals.py --input-dir runs/local_002 --out-dir runs/local_002
-python scripts/generate_tweets.py --input-dir runs/local_002 --out-dir runs/local_002 --top-n 5
-export SUPABASE_URL="https://njwvtksauogsmberxrbd.supabase.co"
-export SUPABASE_KEY="<service-role-key-from-app/.env.local>"
-python scripts/supabase_loader.py --input-dir runs/local_002
-```
-
-### How to Trigger CI
-Go to GitHub → Actions → "Refresh Build Signals Data" → Run workflow → leave `skip_scoring` unchecked → Run
+### Python / PATH
+- Python 3.12 installed at: `C:\Users\mike\AppData\Local\Programs\Python\Python312\python.exe`
+- `python` and `py` commands still point to stubs (use full path above)

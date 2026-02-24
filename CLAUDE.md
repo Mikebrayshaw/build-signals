@@ -105,30 +105,91 @@ Read docs/notes.md for context on this project history, past decisions, and less
 ### /rules
 Read docs/rules.md for all accumulated rules. Apply them. After this session, append any new rules discovered.
 
-## Project Status (as of 2026-02-19, end of session 9)
+## Project Status (as of 2026-02-23, session 12 in progress)
 
-### PIPELINE: FULLY OPERATIONAL — ALL PHASES COMPLETE
+### PIPELINE: FULLY OPERATIONAL + OPPORTUNITY INTELLIGENCE LAYER IN PROGRESS
 
-**Phase 1 (Audit): COMPLETE**
-**Phase 2 (Plan): COMPLETE**
-**Phase 3 (Build): COMPLETE**
-**Phase 4 (Test): COMPLETE** — all steps pass including scoring + tweets
-**Phase 5 (Deploy): COMPLETE** — Railway live, dashboard serving data
+**Phase 1-5: COMPLETE** — All original pipeline phases done
+**Phase 6 (Opportunity Intelligence Layer): IN PROGRESS** — Spec aligned, verification pending
 
-### Session 9 Summary (2026-02-19)
+### Session 12 Summary (2026-02-22/23) — Verification Attempts + Local UI Run
 
 #### What Got Done
-- Railway deploy verified working — all 3 tabs render with live data
-- Anthropic API credits topped up ($20) and confirmed working
-- Full pipeline ran locally end-to-end: 334 signals → 77 scored → 5 tweet drafts
-- 339 records upserted to Supabase (334 opportunities + 5 tweet drafts)
-- Dashboard shows all data: Tweet Drafts, Signals, Trends tabs all populated
-- Updated `SUPABASE_KEY` GitHub secret from anon key → service role key (fixes RLS on CI)
+- Ran `validate_opportunities.py` on `runs\local_001` with `--top-n 1` and `--top-n 15`
+  - Both runs completed but all LLM classify/summarize calls failed with `Connection error`
+  - Output JSONL is present but all opportunities are low confidence with boilerplate narratives
+- Installed `build-signals-ui` dependencies (Streamlit is available locally)
+- Created `C:\Users\mike\build-signals-ui\.streamlit\secrets.toml` with `PASSWORD`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_KEY`
+- Streamlit app launches locally (user confirmed app opens)
 
-#### Nothing Half-Finished — Everything Works
+#### What’s NOT Yet Tested (fully successful)
+- Successful validator run with working Anthropic calls + live evidence (still blocked by outbound HTTPS)
+- `supabase_loader.py` with validated_opportunities output (not run yet)
+- UI verification with real, non-boilerplate opportunities
+- Emoji rendering in UI (mojibake present)
 
-#### Key Fix This Session
-- Supabase loader was failing with RLS error `42501` because GitHub Actions `SUPABASE_KEY` secret was the anon key. Changed to service role key. Local loader already worked because it reads service role key from `app/.env.local`.
+#### Notes / Issues
+- `validate_opportunities.py` runs are currently degraded:
+  - No `GITHUB_TOKEN` (GitHub evidence skipped)
+  - No `PH_TOKEN` (Product Hunt uses local fallback)
+  - Anthropic calls fail (`Connection error`) → low-confidence output
+- `build-signals-ui/app.py` has emoji mojibake due to encoding.
+  - A partial fix attempted to insert `EMOJI_*` constants, but they were written as escaped strings (e.g. `EMOJI_SIGNAL = \"\\U0001F4E1\"`) and did not replace existing mojibake.
+  - Page icon and several UI strings still show garbled characters.
+  - Needs cleanup: replace mojibake with Unicode escapes or ASCII, and remove the broken constants block.
+
+### Session 11 Summary (2026-02-21) — Intelligence Layer Spec Alignment + Local Validation Attempt
+
+#### What Got Done
+- Updated `scripts/validate_opportunities.py` to spec types, buyer‑intent query generation (3–5), evidence summaries, deterministic confidence scoring, and opportunity titles
+- Updated `build-signals-ui/app.py` to a single unified Opportunity view (no tabs) with evidence summaries and type badges
+- Installed Python 3.12 and dependencies from `requirements.txt`
+ - Added `ANTHROPIC_API_KEY` to `C:\Users\mike\build-signals\.env` for local runs
+ - Attempted local validation on `runs\local_001` with `--top-n 1` (re-run on 2026-02-21)
+
+#### What’s Been Tested
+- Python executable verified at `C:\Users\mike\AppData\Local\Programs\Python\Python312\python.exe`
+- Dependencies installed successfully
+ - Validator runs executed, but LLM calls failed due to outbound connection block (see below)
+
+#### What’s NOT Yet Tested (fully successful)
+- Successful live validator run (LLM calls currently blocked)
+- `supabase_loader.py` with validated_opportunities output
+- Streamlit UI render for the unified card view
+- Smoke test for the “elderly people struggling with modern web” opportunity
+
+#### Notes
+- `python` and `py` commands still point to stubs; use the full Python path above
+- Anthropic API calls fail locally with `Connection error` and socket permission error:
+  - Connectivity tests to `api.anthropic.com:443` and `google.com:443` both fail (TCP blocked; ping OK)
+  - Root cause appears to be outbound HTTPS blocked at OS/network level (not just Python firewall)
+- Local validation run had no `GITHUB_TOKEN` (GitHub evidence skipped) and no `PH_TOKEN` (Product Hunt used local fallback)
+- Because of the failure, `validated_opportunities.jsonl` contains:
+  - `opportunity_type: "unknown"`, `queries: {}`
+  - evidence blocks marked `no_queries`, all low confidence
+  - narratives are boilerplate (no external evidence)
+### Session 10 Summary (2026-02-20) — Opportunity Intelligence Layer
+
+#### What Got Done
+- Migration 006 (`validated_opportunities` table) — APPLIED in Supabase
+- `scripts/validate_opportunities.py` — NEW script, fully implemented and tested with `--top-n 1`
+- `scripts/supabase_loader.py` — Updated with Group 4 (validated_opportunities normalization + upsert)
+- `build-signals-ui/app.py` — New "Opportunities" tab added as primary tab (4 tabs total now)
+- `.github/workflows/refresh-data.yml` — Validation step added between tweets and Supabase load
+
+#### What's Been Tested
+- `validate_opportunities.py --top-n 1` ran successfully against `runs/local_001` (77 scored signals)
+- All 3 source queries executed (Google Trends, GitHub API, Product Hunt local fallback)
+- JSONL output verified with all expected fields
+
+#### What's NOT Yet Tested
+- Supabase loader with validated_opportunities.jsonl (need to run `supabase_loader.py`)
+- Dashboard rendering of Opportunities tab (need to launch Streamlit locally or redeploy Railway)
+- Full pipeline end-to-end with `--top-n 15` (tested only with 1)
+- CI workflow with the new validation step
+
+#### Previous Session (Session 9, 2026-02-19)
+- Full pipeline proven end-to-end. All 3 original dashboard tabs working on Railway.
 
 ### Build Progress — All Steps PASS
 
@@ -141,8 +202,9 @@ Read docs/rules.md for all accumulated rules. Apply them. After this session, ap
 | 5. Claude AI Scoring | `scripts/score_signals.py` | PASS (77/334 kept) |
 | 6. Tweet Generation | `scripts/generate_tweets.py` | PASS (5 drafts) |
 | 7. Supabase Loader | `scripts/supabase_loader.py` | PASS (339 upserted) |
-| 8. GitHub Actions | `.github/workflows/refresh-data.yml` | PASS (needs CI verify without skip_scoring) |
-| 9. Streamlit Dashboard | `build-signals-ui/app.py` | PASS — Railway live |
+| 7b. Opportunity Validator | `scripts/validate_opportunities.py` | UPDATED (spec aligned; needs top-1/15 + loader test) |
+| 8. GitHub Actions | `.github/workflows/refresh-data.yml` | UPDATED (validation step added, needs CI verify) |
+| 9. Streamlit Dashboard | `build-signals-ui/app.py` | UPDATED (single unified Opportunities view; needs visual verify) |
 
 ### Infrastructure — All Done
 - [x] Migration 005 run in Supabase (2026-02-17)
@@ -155,13 +217,14 @@ Read docs/rules.md for all accumulated rules. Apply them. After this session, ap
 - [x] SUPABASE_KEY GitHub secret updated to service role key (2026-02-19)
 - [x] Anthropic credits topped up and verified (2026-02-19)
 - [x] Full pipeline run locally with real data (2026-02-19)
+- [x] Migration 006 (`validated_opportunities` table) applied in Supabase (2026-02-20)
 
 ### Three Repos in Play
 
 | Repo | Path | Purpose |
 |------|------|---------|
-| **build-signals** | `C:/Users/mike/build-signals` | Python pipeline (fetch → score → tweet → load) + Next.js app + landing page |
-| **build-signals-ui** | `C:/Users/mike/build-signals-ui` | Streamlit dashboard (3-tab: Tweets, Signals, Trends) |
+| **build-signals** | `C:/Users/mike/build-signals` | Python pipeline (fetch → score → validate → tweet → load) + Next.js app + landing page |
+| **build-signals-ui** | `C:/Users/mike/build-signals-ui` | Streamlit dashboard (single unified Opportunity view) |
 | **signal-source-code** | `C:/Users/mike/signal-source-code` | Vite/TS frontend with Supabase + Tailwind |
 
 ### Architecture
@@ -175,12 +238,14 @@ build-signals/
 │   ├── fetch_google_trends.py     # Enrich with Google Trends YoY
 │   ├── score_signals.py           # Claude API scoring (batch of 5)
 │   ├── generate_tweets.py         # Claude tweet drafts (200-280 words)
-│   └── supabase_loader.py         # Multi-table upsert (opportunities, tweet_drafts, google_trends)
+│   ├── validate_opportunities.py  # Cross-reference signals against 3 sources + Claude narrative
+│   └── supabase_loader.py         # Multi-table upsert (opportunities, tweet_drafts, google_trends, validated_opportunities)
 ├── .github/workflows/
-│   └── refresh-data.yml           # 7-step pipeline with skip_trends/skip_scoring inputs
+│   └── refresh-data.yml           # 8-step pipeline with skip_trends/skip_scoring inputs
 ├── docs/migrations/
 │   ├── 001-004                    # Previous migrations (all applied)
-│   └── 005_add_scoring_and_tweets.sql  # Applied 2026-02-17
+│   ├── 005_add_scoring_and_tweets.sql  # Applied 2026-02-17
+│   └── 006_add_validated_opportunities.sql  # Applied 2026-02-20
 ```
 
 Pipeline order (in workflow):
@@ -190,7 +255,8 @@ Pipeline order (in workflow):
 4. fetch_google_trends.py → google_trends.jsonl (continue-on-error)
 5. score_signals.py → scored_signals.jsonl (needs ANTHROPIC_API_KEY)
 6. generate_tweets.py → tweet_drafts.jsonl (needs ANTHROPIC_API_KEY)
-7. supabase_loader.py → upserts to 3 tables
+7. validate_opportunities.py → validated_opportunities.jsonl (needs ANTHROPIC_API_KEY + GITHUB_TOKEN + PH_TOKEN)
+8. supabase_loader.py → upserts to 4 tables
 
 ### Env Vars
 
@@ -217,12 +283,21 @@ Pipeline order (in workflow):
 - Session 6 (2026-02-17): Streamlit rewrite, requirements.txt, .env.example, migration 005 run, all secrets added, match_github deleted. ALL CODE COMPLETE. Nothing tested yet.
 - Session 7-8 (2026-02-18): CI green with skip_scoring. Fixed 3 bugs. Railway deploying.
 - Session 9 (2026-02-19): FULL PIPELINE WORKING. Scoring + tweets + Supabase + Railway dashboard all verified. SUPABASE_KEY secret fixed to service role key.
+- Session 10 (2026-02-20): Opportunity Intelligence Layer. All code written (5 files). Migration 006 applied. Validator tested with --top-n 1. Loader + dashboard + CI NOT yet tested. Changes NOT committed.
+
+### What's Left to Test (Session 12)
+- [ ] Fix emoji mojibake in `build-signals-ui/app.py` (remove broken `EMOJI_*` block, replace garbled chars)
+- [ ] Re-run `validate_opportunities.py --top-n 1` with working Anthropic connectivity
+- [ ] Re-run `validate_opportunities.py --top-n 15` with working Anthropic connectivity
+- [ ] Run `supabase_loader.py` to upsert validated_opportunities
+- [ ] Launch Streamlit and verify unified opportunity cards render with real evidence
+- [ ] Smoke test: “elderly people struggling with modern web” card reads well
 
 ### Open Low-Priority Items
-- Trigger GitHub Actions workflow WITHOUT skip_scoring to verify CI end-to-end (local run proven, CI not yet tested with scoring)
+- Trigger GitHub Actions workflow WITHOUT skip_scoring to verify CI end-to-end
 - STRIPE_WEBHOOK_SECRET still a placeholder in app/.env.local
-- `hn_listener.py` fails on `runs/latest` symlink on Windows (non-blocking — data files write fine)
-- `generate_tweets.py` print preview crashes on Windows cp1252 console with unicode chars (non-blocking — JSONL file writes fine)
+- `hn_listener.py` fails on `runs/latest` symlink on Windows (non-blocking)
+- `generate_tweets.py` print preview crashes on Windows cp1252 console (non-blocking)
 - `requirements.txt` pins `anthropic==0.43.0` but local has `0.81.0` — consider updating pin
 - `signal-source-code` Vite/TS frontend — not yet connected or worked on
 
@@ -242,3 +317,6 @@ Pipeline order (in workflow):
 - If my approach is suboptimal, say so and explain why
 - When presenting options, rank them and state your recommendation
 - Assume I want the real answer, not the safe one
+
+
+
