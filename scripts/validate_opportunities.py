@@ -476,11 +476,18 @@ def summarize_github(evidence: dict) -> dict:
     if total_repos == 0:
         return {"summary": "No relevant repos found on GitHub search.", "supporting": False}
 
-    top_repo = None
+    # Collect all repos, dedupe by name, sort by stars
+    seen = set()
+    all_repos = []
     for r in results:
         for repo in r.get("repos", []):
-            if not top_repo or (repo.get("stars", 0) or 0) > (top_repo.get("stars", 0) or 0):
-                top_repo = repo
+            name = repo.get("name", "")
+            if name and name not in seen:
+                seen.add(name)
+                all_repos.append(repo)
+    all_repos.sort(key=lambda r: r.get("stars", 0) or 0, reverse=True)
+
+    top_repo = all_repos[0] if all_repos else None
 
     support = False
     if top_repo and (top_repo.get("stars", 0) or 0) >= 50:
@@ -488,13 +495,23 @@ def summarize_github(evidence: dict) -> dict:
     if total_repos >= 3:
         support = True
 
-    if top_repo:
-        summary = (
-            f"Found {total_repos} repos. "
-            f"Top: {top_repo.get('name', '')} ({top_repo.get('stars', 0)} stars)."
-        )
-    else:
-        summary = f"Found {total_repos} related repos on GitHub."
+    # Build narrative with top 3 repos
+    top3 = all_repos[:3]
+    parts = [f"Found {len(all_repos)} unique repos across {len(results)} queries."]
+    for repo in top3:
+        name = repo.get("name", "")
+        stars = repo.get("stars", 0) or 0
+        desc = (repo.get("description") or "").strip()
+        lang = repo.get("language") or ""
+        detail = f"{name} ({stars:,} stars"
+        if lang:
+            detail += f", {lang}"
+        detail += ")"
+        if desc:
+            detail += f" - {desc}"
+        parts.append(detail)
+
+    summary = " | ".join(parts)
     return {"summary": summary, "supporting": support}
 
 
