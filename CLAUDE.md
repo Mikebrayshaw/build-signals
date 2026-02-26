@@ -105,31 +105,47 @@ Read docs/notes.md for context on this project history, past decisions, and less
 ### /rules
 Read docs/rules.md for all accumulated rules. Apply them. After this session, append any new rules discovered.
 
-## Project Status (as of 2026-02-25, session 13)
+## Project Status (as of 2026-02-26, session 15)
 
-### PIPELINE + OPPORTUNITY INTELLIGENCE: FULLY OPERATIONAL AND DEPLOYED
+### PIPELINE OPERATIONAL + VITE FRONTEND REWIRED + BUILD PROMPT FEATURE CODE-COMPLETE
 
-**All phases COMPLETE.** Pipeline runs, scores, validates, loads to Supabase, and renders on Railway.
+Pipeline runs, scores, validates, loads to Supabase. Streamlit dashboard on Railway. Vite frontend rewired to validated_opportunities (session 14). "Build This" starter prompt feature code-complete but NOT YET RUN or DEPLOYED (session 15).
 
-### Session 13 (2026-02-25) — Opportunity Intelligence Layer VERIFIED AND SHIPPED
+### Session 15 (2026-02-26) — Phase 3: "Build This" Starter Prompt Feature — CODE COMPLETE, NOT YET RUN
 
-#### DONE
-- [x] `validate_opportunities.py --top-n 1` — PASS (sanity check, high confidence, real narrative)
-- [x] `validate_opportunities.py --top-n 15` — PASS (9 high, 6 medium, 0 low confidence)
-- [x] `supabase_loader.py --input-dir runs/local_001` — PASS (15 validated opps + 354 total records upserted)
-- [x] Streamlit UI locally — PASS (unified opportunity view with evidence cards)
-- [x] Fixed `st.expander()` `key=` kwarg not supported in installed Streamlit (used unique label text instead)
-- [x] Emoji constants verified correct (Unicode escapes render in browser, cp1252 console is just display)
-- [x] Railway deploy — PASS (all 15 cards rendering on production, confirmed by user)
-- [x] Committed and pushed both repos:
-  - **build-signals** `e2b47b7` on `master`
-  - **build-signals-ui** `29d8eb6` on `main`
+#### DONE (code written, build passes)
+- [x] Migration `007_add_build_prompt.sql` created — adds `build_prompt TEXT` to `validated_opportunities`
+- [x] `validate_opportunities.py` — `SYNTHESIZE_PROMPT` updated to generate structured build prompts (Problem, Target User, MVP Scope, Tech Stack, Build Prompt). Response parsing extracts `build_prompt`. Output record includes it.
+- [x] `supabase_loader.py` — `normalize_validated_opportunity()` passes through `build_prompt`
+- [x] `signal-source-code/src/lib/types.ts` — `build_prompt?: string` on both `Signal` and `ValidatedOpportunityRow`
+- [x] `signal-source-code/src/lib/mappers.ts` — maps `row.build_prompt` into Signal
+- [x] `signal-source-code/src/components/signals/SignalCard.tsx` — Collapsible `<details>` "Build This" section with preformatted monospace text + clipboard Copy button
+- [x] `signal-source-code/src/components/signals/SignalCardCompact.tsx` — "Build" badge when prompt exists
+- [x] `npm run build` passes clean (tsc + vite)
 
-#### NOT DONE (carried forward)
-- [ ] Full CI run: trigger GitHub Actions WITHOUT `skip_scoring` to test end-to-end
-- [ ] `signal-source-code` Vite/TS frontend — not yet connected or worked on
-- [ ] STRIPE_WEBHOOK_SECRET still a placeholder in `app/.env.local`
-- [ ] Orphaned Codex files in build-signals-ui (`app_logic.py`, `tests/`, `TECH_STACK_AUDIT.md`)
+#### NOT YET DONE — MUST DO NEXT SESSION
+- [ ] **Run migration 007** in Supabase SQL Editor (`ALTER TABLE validated_opportunities ADD COLUMN IF NOT EXISTS build_prompt TEXT`)
+- [ ] **Re-run validation**: `python scripts/validate_opportunities.py --input-dir runs/local_001 --top-n 15`
+- [ ] **Check JSONL output** has `build_prompt` field with structured content
+- [ ] **Re-run loader**: `python scripts/supabase_loader.py --input-dir runs/local_001`
+- [ ] **Query Supabase** to confirm `build_prompt` column is populated
+- [ ] **Visually verify** Vite frontend — cards show expandable "Build This" section (http://localhost:5173/app/ or 5174)
+- [ ] **Test Copy button** works
+- [ ] **Commit all 3 repos** (build-signals, signal-source-code)
+- [ ] **Push to remotes**
+
+#### STILL CARRIED FORWARD
+- [ ] Full CI run (GitHub Actions WITHOUT skip_scoring)
+- [ ] Deploy Vite frontend (Vercel/Railway/etc)
+- [ ] STRIPE_WEBHOOK_SECRET still placeholder
+- [ ] Orphaned Codex files in build-signals-ui (app_logic.py, tests/, TECH_STACK_AUDIT.md)
+
+### Session 14 (2026-02-25) — Vite Frontend Rewired to validated_opportunities
+- Rewired all 14+ files in signal-source-code from `opportunities` to `validated_opportunities`
+- New type system: categories[], confidence, evidence buckets, score pills
+- Column name mismatch discovered and fixed (signal_title, signal_source, evidence_* naming)
+- Build passes but NOT YET VISUALLY VERIFIED with live data
+- NOT YET COMMITTED
 
 ### Previous Sessions (condensed)
 - Sessions 1-3 (2026-02-09/10): Initial setup, bug fixes, PH pipeline, migrations 003-004
@@ -140,7 +156,7 @@ Read docs/rules.md for all accumulated rules. Apply them. After this session, ap
 - Sessions 11-12 (2026-02-21/23): Spec alignment, local validation attempts (blocked by network), emoji fixes
 - Session 13 (2026-02-25): All validation runs PASS, Supabase loaded, Railway deployed, both repos pushed
 
-### Build Progress — All Steps PASS
+### Build Progress
 
 | Step | File | Status |
 |------|------|--------|
@@ -151,17 +167,18 @@ Read docs/rules.md for all accumulated rules. Apply them. After this session, ap
 | 5. Claude AI Scoring | `scripts/score_signals.py` | PASS (77/334 kept) |
 | 6. Tweet Generation | `scripts/generate_tweets.py` | PASS (5 drafts) |
 | 7. Supabase Loader | `scripts/supabase_loader.py` | PASS (354 upserted to 4 tables) |
-| 7b. Opportunity Validator | `scripts/validate_opportunities.py` | PASS (15 validated: 9 high, 6 medium) |
+| 7b. Opportunity Validator | `scripts/validate_opportunities.py` | PASS (15 validated: 9 high, 6 medium) — build_prompt added, needs re-run |
 | 8. GitHub Actions | `.github/workflows/refresh-data.yml` | PASS (needs full CI verify without skip_scoring) |
 | 9. Streamlit Dashboard | `build-signals-ui/app.py` | PASS (unified opportunity view on Railway) |
+| 10. Vite Frontend | `signal-source-code/` | CODE COMPLETE — rewired + build_prompt UI, needs visual verify + deploy |
 
 ### Three Repos in Play
 
-| Repo | Path | Branch | Latest Commit |
-|------|------|--------|---------------|
-| **build-signals** | `C:/Users/mike/build-signals` | `master` | `e2b47b7` |
-| **build-signals-ui** | `C:/Users/mike/build-signals-ui` | `main` | `29d8eb6` |
-| **signal-source-code** | `C:/Users/mike/signal-source-code` | — | Not yet worked on |
+| Repo | Path | Branch | Uncommitted Changes |
+|------|------|--------|---------------------|
+| **build-signals** | `C:/Users/mike/build-signals` | `master` | YES — migration 007, validate_opportunities.py, supabase_loader.py |
+| **build-signals-ui** | `C:/Users/mike/build-signals-ui` | `main` | No |
+| **signal-source-code** | `C:/Users/mike/signal-source-code` | `main` | YES — types.ts, mappers.ts, SignalCard.tsx, SignalCardCompact.tsx (session 14 rewire + session 15 build_prompt) |
 
 ### Architecture
 
@@ -181,7 +198,8 @@ build-signals/
 ├── docs/migrations/
 │   ├── 001-004                    # Previous migrations (all applied)
 │   ├── 005_add_scoring_and_tweets.sql  # Applied 2026-02-17
-│   └── 006_add_validated_opportunities.sql  # Applied 2026-02-20
+│   ├── 006_add_validated_opportunities.sql  # Applied 2026-02-20
+│   └── 007_add_build_prompt.sql   # NOT YET APPLIED — adds build_prompt TEXT column
 ```
 
 Pipeline order (in workflow):

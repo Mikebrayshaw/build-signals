@@ -234,6 +234,7 @@ def normalize_validated_opportunity(record: dict) -> dict:
         "narrative": record.get("narrative"),
         "one_line_hook": record.get("one_line_hook"),
         "key_insight": record.get("key_insight"),
+        "build_prompt": record.get("build_prompt"),
         "validated_at": record.get("validated_at", datetime.now(timezone.utc).isoformat()),
         "model_used": record.get("model_used"),
     }

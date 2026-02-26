@@ -66,11 +66,34 @@ Respond with a JSON array. Each element:
 
 ONLY output the JSON array."""
 
-SYNTHESIZE_PROMPT = """You are writing validation narratives for builder opportunities. You've been given a signal and evidence summaries from Google Trends, Product Hunt, and GitHub.
+SYNTHESIZE_PROMPT = """You are writing validation narratives and starter build prompts for builder opportunities. You've been given a signal and evidence summaries from Google Trends, Product Hunt, and GitHub.
 
 For each signal, write:
 1. **narrative**: 3-5 sentences summarizing the validation evidence. Be specific about what was found. If evidence is weak or missing, say so honestly. Reference actual numbers or product names when provided.
 2. End with an explicit assessment sentence using the provided confidence label, e.g. "Assessment: Open market with validated demand. High confidence opportunity."
+3. **build_prompt**: A ready-to-paste Claude Code prompt that a developer can use to start building an MVP. Structure it as:
+
+## Problem
+[1-2 sentences: what pain point this solves, in plain language]
+
+## Target User
+[1 sentence: who has this problem]
+
+## MVP Scope
+[3-5 bullet points: what to build first, keep it minimal]
+
+## Tech Stack
+- Python + FastAPI (or Flask) for backend
+- Supabase for database + auth
+- Railway for hosting
+- [any domain-specific libraries]
+
+## Build Prompt
+Build me a [product type] that [core value prop]. It should:
+- [feature 1]
+- [feature 2]
+- [feature 3]
+Use Python/FastAPI with Supabase for the backend. Keep it minimal — I want a working MVP I can demo in a day.
 
 Use the provided confidence label and source count. Do NOT change them.
 
@@ -81,7 +104,8 @@ Input:
 Respond with a JSON array. Each element:
 {{
   "signal_index": 0,
-  "narrative": "3-5 sentence validation narrative..."
+  "narrative": "3-5 sentence validation narrative...",
+  "build_prompt": "## Problem\\n...full structured prompt..."
 }}
 
 ONLY output the JSON array."""
@@ -852,7 +876,8 @@ def main():
                 narratives[actual_idx] = r
                 conf = evidence_list[actual_idx].get("confidence", "?")
                 sources = evidence_list[actual_idx].get("sources_confirming", 0)
-                print(f"    Signal {actual_idx}: confidence={conf}, sources={sources}")
+                has_prompt = "yes" if r.get("build_prompt") else "no"
+                print(f"    Signal {actual_idx}: confidence={conf}, sources={sources}, build_prompt={has_prompt}")
 
         if batch_num < total_batches - 1 and args.sleep > 0:
             time.sleep(args.sleep)
@@ -898,6 +923,7 @@ def main():
             "narrative": narrative_text,
             "one_line_hook": sig.get("one_line_hook", ""),
             "key_insight": sig.get("key_insight", ""),
+            "build_prompt": (narr.get("build_prompt") or "").strip(),
             "validated_at": now_iso,
             "model_used": MODEL,
         }
