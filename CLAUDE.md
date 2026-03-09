@@ -1,4 +1,4 @@
-﻿# CLAUDE.md
+# CLAUDE.md
 
 ## Identity and Role
 
@@ -105,80 +105,93 @@ Read docs/notes.md for context on this project history, past decisions, and less
 ### /rules
 Read docs/rules.md for all accumulated rules. Apply them. After this session, append any new rules discovered.
 
-## Project Status (as of 2026-02-26, session 15)
+## Project Status (as of 2026-03-09, session 20)
 
-### PIPELINE OPERATIONAL + VITE FRONTEND REWIRED + BUILD PROMPT FEATURE CODE-COMPLETE
+### STRIPE DEPLOY IN PROGRESS — 2 of 4 manual steps done
 
-Pipeline runs, scores, validates, loads to Supabase. Streamlit dashboard on Railway. Vite frontend rewired to validated_opportunities (session 14). "Build This" starter prompt feature code-complete but NOT YET RUN or DEPLOYED (session 15).
+Session 20 started the Stripe deploy. Mike is working through the manual setup steps.
 
-### Session 15 (2026-02-26) — Phase 3: "Build This" Starter Prompt Feature — CODE COMPLETE, NOT YET RUN
+### Session 20 (2026-03-09) — Stripe Deploy
 
-#### DONE (code written, build passes)
-- [x] Migration `007_add_build_prompt.sql` created — adds `build_prompt TEXT` to `validated_opportunities`
-- [x] `validate_opportunities.py` — `SYNTHESIZE_PROMPT` updated to generate structured build prompts (Problem, Target User, MVP Scope, Tech Stack, Build Prompt). Response parsing extracts `build_prompt`. Output record includes it.
-- [x] `supabase_loader.py` — `normalize_validated_opportunity()` passes through `build_prompt`
-- [x] `signal-source-code/src/lib/types.ts` — `build_prompt?: string` on both `Signal` and `ValidatedOpportunityRow`
-- [x] `signal-source-code/src/lib/mappers.ts` — maps `row.build_prompt` into Signal
-- [x] `signal-source-code/src/components/signals/SignalCard.tsx` — Collapsible `<details>` "Build This" section with preformatted monospace text + clipboard Copy button
-- [x] `signal-source-code/src/components/signals/SignalCardCompact.tsx` — "Build" badge when prompt exists
-- [x] `npm run build` passes clean (tsc + vite)
+#### DONE THIS SESSION
+- [x] Stripe product created: "Build Signals Pro", $99/year recurring
+  - Product ID: `prod_U5TPqYbDTYzFCB`
+  - Price ID: `price_1T7ISG7pmIxaLWJWoMLw7a8u`
+- [x] Stripe webhook created with 3 events (`checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`)
+  - Webhook secret: `whsec_pASdW9V6roYCoLMMFcJSiCE1gul7BAVm`
 
-#### NOT YET DONE — MUST DO NEXT SESSION
-- [ ] **Run migration 007** in Supabase SQL Editor (`ALTER TABLE validated_opportunities ADD COLUMN IF NOT EXISTS build_prompt TEXT`)
-- [ ] **Re-run validation**: `python scripts/validate_opportunities.py --input-dir runs/local_001 --top-n 15`
-- [ ] **Check JSONL output** has `build_prompt` field with structured content
-- [ ] **Re-run loader**: `python scripts/supabase_loader.py --input-dir runs/local_001`
-- [ ] **Query Supabase** to confirm `build_prompt` column is populated
-- [ ] **Visually verify** Vite frontend — cards show expandable "Build This" section (http://localhost:5173/app/ or 5174)
-- [ ] **Test Copy button** works
-- [ ] **Commit all 3 repos** (build-signals, signal-source-code)
-- [ ] **Push to remotes**
+#### WHAT'S HALF-FINISHED — Mike's Manual Steps (2 of 4 done)
+1. ~~**Stripe Dashboard**: Create product + price~~ — DONE
+2. ~~**Stripe Dashboard**: Add webhook endpoint~~ — DONE
+3. **Supabase SQL Editor**: Run `docs/migrations/008_add_subscriptions.sql` — **NOT YET DONE**
+4. **Railway env vars**: Set these 5 vars — **NOT YET DONE**
+   - `STRIPE_SECRET_KEY` → Mike's Stripe secret key
+   - `STRIPE_PRICE_ID` → `price_1T7ISG7pmIxaLWJWoMLw7a8u`
+   - `STRIPE_WEBHOOK_SECRET` → `whsec_pASdW9V6roYCoLMMFcJSiCE1gul7BAVm`
+   - `SUPABASE_SERVICE_KEY` → service role key (from `app/.env.local`)
+   - `SUPABASE_URL` → `https://njwvtksauogsmberxrbd.supabase.co`
 
-#### STILL CARRIED FORWARD
-- [ ] Full CI run (GitHub Actions WITHOUT skip_scoring)
-- [ ] Deploy Vite frontend (Vercel/Railway/etc)
-- [ ] STRIPE_WEBHOOK_SECRET still placeholder
-- [ ] Orphaned Codex files in build-signals-ui (app_logic.py, tests/, TECH_STACK_AUDIT.md)
+#### AFTER MANUAL STEPS — Claude Does This
+1. Commit all Stripe changes in `signal-source-code/` (10 files) and `build-signals/` (migration + docs)
+2. `npm run build` in `signal-source-code/`
+3. `railway up` to deploy
+4. Test with Stripe test card `4242 4242 4242 4242`
+5. Verify: blurred prompts -> checkout -> webhook -> prompt un-blurs -> refresh persists
 
-### Session 14 (2026-02-25) — Vite Frontend Rewired to validated_opportunities
-- Rewired all 14+ files in signal-source-code from `opportunities` to `validated_opportunities`
-- New type system: categories[], confidence, evidence buckets, score pills
-- Column name mismatch discovered and fixed (signal_title, signal_source, evidence_* naming)
-- Build passes but NOT YET VISUALLY VERIFIED with live data
-- NOT YET COMMITTED
+#### Uncommitted Stripe Code (written session 18, still waiting)
+**In `signal-source-code/`:**
+| File | Status | What |
+|------|--------|------|
+| `package.json` | Modified | Added `stripe`, `dotenv` deps (npm installed) |
+| `server.js` | Rewritten | 3 API routes: `/api/stripe/webhook`, `/api/checkout`, `/api/subscription/:userId` |
+| `src/context/SubscriptionContext.tsx` | **NEW** | `isPro`, `loading`, `currentPeriodEnd`, `checkout()`, `refresh()` |
+| `src/App.tsx` | Modified | Wrapped with `<SubscriptionProvider>` inside Auth, outside Signals |
+| `src/components/signals/SignalCard.tsx` | Modified | Pro: expandable prompt. Free: blurred + "Upgrade to Pro — $99/year" overlay |
+| `src/components/signals/SignalCardCompact.tsx` | Modified | Badge: "Build" for Pro, "Pro" (violet) for free |
+| `src/pages/SettingsPage.tsx` | Modified | New Subscription section (status + renewal or upgrade button) |
+| `index.html` | Modified | Pro card: "Coming soon" -> "$99/year", active "Get Pro access" CTA |
+| `vite.config.ts` | Modified | Added `/api` proxy to `localhost:8080` for dev |
+
+**In `build-signals/`:**
+| File | Status | What |
+|------|--------|------|
+| `docs/migrations/008_add_subscriptions.sql` | **NEW** | `subscriptions` table + RLS policies |
+
+#### WHAT'S NEXT — After Stripe Deploy
+1. **Full CI run** — trigger GitHub Actions WITHOUT `skip_scoring` to prove end-to-end pipeline in CI
+2. **Landing page data refresh** — the 3 showcase signals in `index.html` are hardcoded from Feb 26; could update with today's top signals
+3. **Cleanup** — orphaned Codex files in build-signals-ui, old Codex branches
 
 ### Previous Sessions (condensed)
-- Sessions 1-3 (2026-02-09/10): Initial setup, bug fixes, PH pipeline, migrations 003-004
-- Sessions 4-6 (2026-02-15/17): Full audit, pipeline upgrade build, Streamlit rewrite, all code complete
-- Sessions 7-8 (2026-02-18): CI green with skip_scoring, 3 bugs fixed, Railway deploying
-- Session 9 (2026-02-19): Full pipeline proven end-to-end, all dashboard tabs working on Railway
-- Session 10 (2026-02-20): Opportunity Intelligence Layer code written (5 files), migration 006 applied
-- Sessions 11-12 (2026-02-21/23): Spec alignment, local validation attempts (blocked by network), emoji fixes
-- Session 13 (2026-02-25): All validation runs PASS, Supabase loaded, Railway deployed, both repos pushed
+- Session 19 (2026-03-07): Fresh pipeline run (226->52->15->266 to Supabase), fixed .env \r, restored Supabase
+- Session 18 (2026-02-28): Stripe $99/year Pro paywall code-complete across 10 files (NOT committed)
+- Session 17 (2026-02-26): Landing page full rewrite, committed `87280bc`, deployed
+- Session 16 (2026-02-26): Migration 007, validation re-run, Supabase loader, frontend deployed
+- Sessions 1-15: Initial setup, pipeline, Streamlit dashboard, CI, opportunity layer, validations
 
-### Build Progress
+### Build Progress — ALL STEPS PASS (latest run: 2026-03-07)
 
 | Step | File | Status |
 |------|------|--------|
-| 1. HN Listener | `scripts/hn_listener.py` | PASS |
-| 2. GitHub Trending | `scripts/fetch_github_trending.py` | PASS |
-| 3. Product Hunt | `scripts/fetch_producthunt.py` | PASS |
-| 4. Google Trends | `scripts/fetch_google_trends.py` | PASS |
-| 5. Claude AI Scoring | `scripts/score_signals.py` | PASS (77/334 kept) |
-| 6. Tweet Generation | `scripts/generate_tweets.py` | PASS (5 drafts) |
-| 7. Supabase Loader | `scripts/supabase_loader.py` | PASS (354 upserted to 4 tables) |
-| 7b. Opportunity Validator | `scripts/validate_opportunities.py` | PASS (15 validated: 9 high, 6 medium) — build_prompt added, needs re-run |
-| 8. GitHub Actions | `.github/workflows/refresh-data.yml` | PASS (needs full CI verify without skip_scoring) |
-| 9. Streamlit Dashboard | `build-signals-ui/app.py` | PASS (unified opportunity view on Railway) |
-| 10. Vite Frontend | `signal-source-code/` | CODE COMPLETE — rewired + build_prompt UI, needs visual verify + deploy |
+| 1. HN Listener | `scripts/hn_listener.py` | PASS (202 posts) |
+| 2. GitHub Trending | `scripts/fetch_github_trending.py` | PASS (24 repos) |
+| 3. Product Hunt | `scripts/fetch_producthunt.py` | SKIPPED (no PH_TOKEN) |
+| 4. Google Trends | `scripts/fetch_google_trends.py` | PASS (20 keywords, 7 rising) |
+| 5. Claude AI Scoring | `scripts/score_signals.py` | PASS (52/226 kept) |
+| 6. Tweet Generation | `scripts/generate_tweets.py` | PASS (5 drafts, cp1252 print crash on preview — data fine) |
+| 7. Supabase Loader | `scripts/supabase_loader.py` | PASS (266 upserted to 4 tables) |
+| 7b. Opportunity Validator | `scripts/validate_opportunities.py` | PASS (15 validated: 6 medium, 9 low, all with build_prompt) |
+| 8. GitHub Actions | `.github/workflows/refresh-data.yml` | UNTESTED (needs full CI verify without skip_scoring) |
+| 9. Streamlit Dashboard | `build-signals-ui/app.py` | PASS (on Railway) |
+| 10. Vite Frontend | `signal-source-code/` | PASS — DEPLOYED to Railway |
 
 ### Three Repos in Play
 
-| Repo | Path | Branch | Uncommitted Changes |
-|------|------|--------|---------------------|
-| **build-signals** | `C:/Users/mike/build-signals` | `master` | YES — migration 007, validate_opportunities.py, supabase_loader.py |
-| **build-signals-ui** | `C:/Users/mike/build-signals-ui` | `main` | No |
-| **signal-source-code** | `C:/Users/mike/signal-source-code` | `main` | YES — types.ts, mappers.ts, SignalCard.tsx, SignalCardCompact.tsx (session 14 rewire + session 15 build_prompt) |
+| Repo | Path | Branch | Latest Commit | Uncommitted? |
+|------|------|--------|---------------|--------------|
+| **build-signals** | `C:/Users/mike/build-signals` | `master` | `3d5a1c9` | YES — CLAUDE.md, TASKS.md, tasks/todo.md, 008 migration |
+| **build-signals-ui** | `C:/Users/mike/build-signals-ui` | `main` | `29d8eb6` | No |
+| **signal-source-code** | `C:/Users/mike/signal-source-code` | `main` | `87280bc` | YES — 10 Stripe files (session 18) |
 
 ### Architecture
 
@@ -199,7 +212,8 @@ build-signals/
 │   ├── 001-004                    # Previous migrations (all applied)
 │   ├── 005_add_scoring_and_tweets.sql  # Applied 2026-02-17
 │   ├── 006_add_validated_opportunities.sql  # Applied 2026-02-20
-│   └── 007_add_build_prompt.sql   # NOT YET APPLIED — adds build_prompt TEXT column
+│   ├── 007_add_build_prompt.sql   # APPLIED 2026-02-26
+│   └── 008_add_subscriptions.sql  # NEW — NOT YET APPLIED (Stripe subscriptions table + RLS)
 ```
 
 Pipeline order (in workflow):
@@ -212,16 +226,40 @@ Pipeline order (in workflow):
 7. validate_opportunities.py -> validated_opportunities.jsonl (needs ANTHROPIC_API_KEY + GITHUB_TOKEN + PH_TOKEN)
 8. supabase_loader.py -> upserts to 4 tables
 
+### How to Run the Pipeline Locally
+
+```bash
+cd C:/Users/mike/build-signals
+export $(cat .env | xargs)
+RUN_ID=$(date +%Y%m%d_%H%M%S)
+mkdir -p runs/$RUN_ID
+
+# Scrapers (can run in parallel)
+python scripts/hn_listener.py --out-dir runs/$RUN_ID
+python scripts/fetch_github_trending.py --out-dir runs/$RUN_ID
+python scripts/fetch_producthunt.py --out-dir runs/$RUN_ID  # needs PH_TOKEN
+
+# Enrichment + scoring (sequential)
+python scripts/fetch_google_trends.py --input-dir runs/$RUN_ID --out-dir runs/$RUN_ID
+python scripts/score_signals.py --input-dir runs/$RUN_ID --out-dir runs/$RUN_ID
+python scripts/generate_tweets.py --input-dir runs/$RUN_ID --out-dir runs/$RUN_ID
+python scripts/validate_opportunities.py --input-dir runs/$RUN_ID --out-dir runs/$RUN_ID --top-n 15
+
+# Load to Supabase
+python scripts/supabase_loader.py --input-dir runs/$RUN_ID
+```
+
+Note: Use full python path `C:/Users/mike/AppData/Local/Programs/Python/Python312/python.exe` if `python` doesn't resolve.
+
 ### Env Vars
 
-**Root `.env`** (used by Python scripts via `load_dotenv()`):
-- `ANTHROPIC_API_KEY` — Claude API key (working as of session 13)
-- `SUPABASE_URL` — Supabase project URL
-- `SUPABASE_KEY` — anon key
+**Root `.env`** (used by Python scripts via shell export or `load_dotenv()`):
+- `ANTHROPIC_API_KEY` — Claude API key (working as of session 19, .env fixed for \r)
 - `GITHUB_TOKEN` — fine-grained GitHub PAT
-- `PH_TOKEN` — Product Hunt OAuth bearer token
+- NOTE: No `SUPABASE_URL`/`SUPABASE_KEY` here — loader uses `app/.env.local`
+- NOTE: No `PH_TOKEN` — Product Hunt scraper will skip
 
-**`app/.env.local`** (used by Next.js app + supabase_loader.py):
+**`app/.env.local`** (used by supabase_loader.py via `load_dotenv()`):
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — public anon key
 - `SUPABASE_SERVICE_ROLE_KEY` — bypasses RLS (used by loader)
@@ -230,14 +268,22 @@ Pipeline order (in workflow):
 
 ### Key Technical Notes
 - Python path: `C:\Users\mike\AppData\Local\Programs\Python\Python312\python.exe`
+- `anthropic` SDK version: `0.43.0` (old but working — model `claude-sonnet-4-20250514` works fine)
+- `.env` must NOT have Windows `\r` line endings — causes "Illegal header value" / "Connection error" when shell-exported
+- Supabase free tier hibernates after ~7 days inactivity — restore from dashboard if DNS fails
 - `streamlit` not on PATH — use `python -m streamlit` instead
-- `st.expander()` key= kwarg not supported — use unique label text
 - Supabase stores JSON columns as text strings — dashboard must `json.loads()` them
 - Dashboard password: `buildsignals123`
-- Railway URL: https://build-signals-ui-production.up.railway.app
+- Railway (Landing page): https://signal-source-code-production.up.railway.app/
+- Railway (Vite dashboard): https://signal-source-code-production.up.railway.app/app/
+- Railway (Streamlit): https://build-signals-ui-production.up.railway.app
+- Railway project: `trustworthy-vibrancy`, service: `signal-source-code`
+- Railway CLI installed, logged in as mfbrayshaw@gmail.com
 - Supabase: https://njwvtksauogsmberxrbd.supabase.co
 - `gh` CLI not installed — use curl + GitHub API or web UI
 - GitHub `SUPABASE_KEY` secret = service role key (not anon key) to bypass RLS
+- All scraper scripts use `--out-dir` (NOT `--output-dir`)
+- `generate_tweets.py` crashes on preview print due to Windows cp1252 encoding (arrow chars) — the JSONL data is fine
 
 ## File Conventions
 
@@ -255,6 +301,3 @@ Pipeline order (in workflow):
 - If my approach is suboptimal, say so and explain why
 - When presenting options, rank them and state your recommendation
 - Assume I want the real answer, not the safe one
-
-
-
